@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "43040a5cae153d3e4a7bb2c9f0d673f1",
+    "content-hash": "e1bbaabc1d1d9aaaf206b77d32c5a067",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -233,6 +233,177 @@
                 }
             ],
             "time": "2026-02-21T08:51:10+00:00"
+        },
+        {
+            "name": "binhtq1/kern-core",
+            "version": "0.2.0",
+            "dist": {
+                "type": "path",
+                "url": "platform",
+                "reference": "77746030d99a63eb83f91a669a19b9e335d87dfe"
+            },
+            "require": {
+                "barryvdh/laravel-dompdf": "^3.0",
+                "ext-gd": "*",
+                "ext-zip": "*",
+                "inertiajs/inertia-laravel": "^3.0",
+                "intervention/image": "^3.4",
+                "knuckleswtf/scribe": "^5.0",
+                "laravel/framework": "^13.0",
+                "laravel/sanctum": "^4.3",
+                "league/flysystem-aws-s3-v3": "^3.0",
+                "maatwebsite/excel": "^3.1",
+                "maennchen/zipstream-php": "3.1.*",
+                "mews/purifier": "^3.3",
+                "php": "^8.4",
+                "spatie/simple-excel": "^3.6",
+                "symfony/http-client": "^7.4 || ^8.0",
+                "symfony/mailgun-mailer": "^7.4 || ^8.0",
+                "symfony/postmark-mailer": "^7.4 || ^8.0",
+                "twig/twig": "^3.14",
+                "yajra/laravel-datatables-buttons": "^13.0",
+                "yajra/laravel-datatables-oracle": "^13.0"
+            },
+            "replace": {
+                "kern/api": "1.0.0",
+                "kern/assets": "1.0.0",
+                "kern/data-synchronize": "1.0.0",
+                "kern/form-builder": "1.0.0",
+                "kern/get-started": "1.0.0",
+                "kern/installer": "1.0.0",
+                "kern/menu": "1.0.0",
+                "kern/optimize": "1.0.0",
+                "kern/page": "1.0.0",
+                "kern/platform": "1.0.0",
+                "kern/plugin-management": "1.0.0",
+                "kern/revision": "1.0.0",
+                "kern/seo-helper": "1.0.0",
+                "kern/shortcode": "1.0.0",
+                "kern/sitemap": "1.0.0",
+                "kern/slug": "1.0.0",
+                "kern/theme": "1.0.0",
+                "kern/widget": "1.0.0"
+            },
+            "bin": [
+                "bin/migrate-to-core.php"
+            ],
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Kern\\Base\\Providers\\BaseServiceProvider",
+                        "Kern\\Base\\Providers\\CommandServiceProvider",
+                        "Kern\\Base\\Providers\\EventServiceProvider",
+                        "Kern\\Base\\Providers\\ComposerServiceProvider",
+                        "Kern\\Base\\Providers\\MailConfigServiceProvider",
+                        "Kern\\Base\\Providers\\FormServiceProvider",
+                        "Kern\\Support\\Providers\\SupportServiceProvider",
+                        "Kern\\Table\\Providers\\TableServiceProvider",
+                        "Kern\\ACL\\Providers\\AclServiceProvider",
+                        "Kern\\Dashboard\\Providers\\DashboardServiceProvider",
+                        "Kern\\Media\\Providers\\MediaServiceProvider",
+                        "Kern\\JsValidation\\Providers\\JsValidationServiceProvider",
+                        "Kern\\Chart\\Providers\\ChartServiceProvider",
+                        "Kern\\Icon\\Providers\\IconServiceProvider",
+                        "Kern\\Api\\Providers\\ApiServiceProvider",
+                        "Kern\\Assets\\Providers\\AssetsServiceProvider",
+                        "Kern\\DataSynchronize\\Providers\\DataSynchronizeServiceProvider",
+                        "Kris\\LaravelFormBuilder\\FormBuilderServiceProvider",
+                        "Kern\\GetStarted\\Providers\\GetStartedServiceProvider",
+                        "Kern\\Installer\\Providers\\InstallerServiceProvider",
+                        "Kern\\Menu\\Providers\\MenuServiceProvider",
+                        "Kern\\Optimize\\Providers\\OptimizeServiceProvider",
+                        "Kern\\Page\\Providers\\PageServiceProvider",
+                        "Kern\\PluginManagement\\Providers\\PluginManagementServiceProvider",
+                        "Kern\\Revision\\Providers\\RevisionServiceProvider",
+                        "Kern\\SeoHelper\\Providers\\SeoHelperServiceProvider",
+                        "Kern\\Shortcode\\Providers\\ShortcodeServiceProvider",
+                        "Kern\\Sitemap\\Providers\\SitemapServiceProvider",
+                        "Kern\\Slug\\Providers\\SlugServiceProvider",
+                        "Kern\\Theme\\Providers\\ThemeServiceProvider",
+                        "Kern\\Theme\\Providers\\RouteServiceProvider",
+                        "Kern\\Widget\\Providers\\WidgetServiceProvider"
+                    ],
+                    "aliases": {
+                        "Action": "Kern\\Base\\Facades\\Action",
+                        "AdminAppearance": "Kern\\Base\\Facades\\AdminAppearance",
+                        "AdminHelper": "Kern\\Base\\Facades\\AdminHelper",
+                        "Assets": "Kern\\Base\\Facades\\Assets",
+                        "BaseHelper": "Kern\\Base\\Facades\\BaseHelper",
+                        "DashboardMenu": "Kern\\Base\\Facades\\DashboardMenu",
+                        "CoreIcon": "Kern\\Icon\\Facades\\Icon",
+                        "EmailHandler": "Kern\\Base\\Facades\\EmailHandler",
+                        "Filter": "Kern\\Base\\Facades\\Filter",
+                        "Form": "Kern\\Base\\Facades\\Form",
+                        "Html": "Kern\\Base\\Facades\\Html",
+                        "JsValidator": "Kern\\JsValidation\\Facades\\JsValidator",
+                        "MacroableModels": "Kern\\Base\\Facades\\MacroableModels",
+                        "MetaBox": "Kern\\Base\\Facades\\MetaBox",
+                        "PageTitle": "Kern\\Base\\Facades\\PageTitle",
+                        "PanelSectionManager": "Kern\\Base\\Facades\\PanelSectionManager",
+                        "RvMedia": "Kern\\Media\\Facades\\RvMedia",
+                        "Setting": "Kern\\Setting\\Facades\\Setting",
+                        "ApiHelper": "Kern\\Api\\Facades\\ApiHelper",
+                        "FormBuilder": "Kris\\LaravelFormBuilder\\Facades\\FormBuilder",
+                        "Menu": "Kern\\Menu\\Facades\\Menu",
+                        "OptimizerHelper": "Kern\\Optimize\\Facades\\OptimizerHelper",
+                        "SeoHelper": "Kern\\SeoHelper\\Facades\\SeoHelper",
+                        "Shortcode": "Kern\\Shortcode\\Facades\\Shortcode",
+                        "SlugHelper": "Kern\\Slug\\Facades\\SlugHelper",
+                        "Theme": "Kern\\Theme\\Facades\\Theme",
+                        "ThemeOption": "Kern\\Theme\\Facades\\ThemeOption",
+                        "ThemeManager": "Kern\\Theme\\Facades\\Manager",
+                        "AdminBar": "Kern\\Theme\\Facades\\AdminBar",
+                        "SiteMapManager": "Kern\\Theme\\Facades\\SiteMapManager",
+                        "Widget": "Kern\\Widget\\Facades\\Widget",
+                        "WidgetGroup": "Kern\\Widget\\Facades\\WidgetGroup"
+                    }
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Kern\\Support\\": "core/support/src",
+                    "Kern\\ACL\\": "core/acl/src",
+                    "Kern\\Base\\": "core/base/src",
+                    "Kern\\Base\\Tests\\": "core/base/tests",
+                    "Kern\\Dashboard\\": "core/dashboard/src",
+                    "Kern\\Media\\": "core/media/src",
+                    "Kern\\Setting\\": "core/setting/src",
+                    "Kern\\Table\\": "core/table/src",
+                    "Kern\\JsValidation\\": "core/js-validation/src",
+                    "Kern\\Chart\\": "core/chart/src",
+                    "Kern\\Icon\\": "core/icon/src",
+                    "Kern\\Api\\": "packages/api/src",
+                    "Kern\\Assets\\": "packages/assets/src",
+                    "Kern\\DataSynchronize\\": "packages/data-synchronize/src/",
+                    "Kris\\LaravelFormBuilder\\": "packages/form-builder/src/",
+                    "Kern\\GetStarted\\": "packages/get-started/src",
+                    "Kern\\Installer\\": "packages/installer/src",
+                    "Kern\\Menu\\": "packages/menu/src",
+                    "Kern\\Optimize\\": "packages/optimize/src",
+                    "Kern\\Page\\": "packages/page/src",
+                    "Kern\\PluginManagement\\": "packages/plugin-management/src",
+                    "Kern\\Revision\\": "packages/revision/src",
+                    "Kern\\SeoHelper\\": "packages/seo-helper/src",
+                    "Kern\\Shortcode\\": "packages/shortcode/src",
+                    "Kern\\Sitemap\\": "packages/sitemap/src",
+                    "Kern\\Slug\\": "packages/slug/src",
+                    "Kern\\Theme\\": "packages/theme/src",
+                    "Kern\\Widget\\": "packages/widget/src"
+                },
+                "files": [
+                    "packages/form-builder/helpers/helpers.php"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Upgradeable Kern CMS runtime",
+            "homepage": "https://github.com/binhtq1/kern-core",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "brick/math",
@@ -2503,923 +2674,6 @@
                 }
             ],
             "time": "2026-10-05T12:21:16+00:00"
-        },
-        {
-            "name": "kern/api",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/api",
-                "reference": "64fd07f353e32e40d1e41f8cdb9a0681163823c1"
-            },
-            "require": {
-                "knuckleswtf/scribe": "^5.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Api\\Providers\\ApiServiceProvider"
-                    ],
-                    "aliases": {
-                        "ApiHelper": "Kern\\Api\\Facades\\ApiHelper"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Api\\": "src"
-                }
-            },
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "API package for Kern CMS",
-            "homepage": "https://github.com/binhtq1/kern-cms",
-            "keywords": [
-                "kern",
-                "kern api",
-                "kern cms",
-                "kern platform"
-            ],
-            "support": {
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/api",
-                "email": "quocbinhkrb@gmail.com"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/assets",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/assets",
-                "reference": "e9bec6835fbb7a9428f25d916e8d1d1fc3db16ad"
-            },
-            "require": {
-                "laravel/framework": "^13.0",
-                "php": "^8.3"
-            },
-            "require-dev": {
-                "mockery/mockery": "^1.0",
-                "phpunit/phpunit": "^6.1|^7.0|^8.0|^9.0|^10.0|^11.0"
-            },
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Assets\\Providers\\AssetsServiceProvider"
-                    ],
-                    "aliases": {
-                        "Assets": "Kern\\Assets\\Facades\\AssetsFacade"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Assets\\": "src"
-                }
-            },
-            "autoload-dev": {
-                "psr-4": {
-                    "Kern\\Assets\\Tests\\": "tests"
-                }
-            },
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Asset management for Kern CMS",
-            "homepage": "https://github.com/binhtq1/kern-cms",
-            "keywords": [
-                "kern",
-                "kern assets",
-                "kern cms",
-                "kern platform"
-            ],
-            "support": {
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/assets",
-                "email": "quocbinhkrb@gmail.com"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/data-synchronize",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/data-synchronize",
-                "reference": "1b483bcad0a17179890cde5d7b9805f3deb9aee3"
-            },
-            "require": {
-                "kern/platform": "^1.0",
-                "maatwebsite/excel": "^3.1",
-                "spatie/simple-excel": "^3.6"
-            },
-            "type": "kern-package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\DataSynchronize\\Providers\\DataSynchronizeServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\DataSynchronize\\": "src/"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Make site ready in few steps",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/data-synchronize"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/form-builder",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/form-builder",
-                "reference": "0aaa61b6a951885c13a93245022de0f4780fdc72"
-            },
-            "require": {
-                "laravel/framework": "^13.0",
-                "php": "^8.3"
-            },
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kris\\LaravelFormBuilder\\FormBuilderServiceProvider"
-                    ],
-                    "aliases": {
-                        "FormBuilder": "Kris\\LaravelFormBuilder\\Facades\\FormBuilder"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kris\\LaravelFormBuilder\\": "src/"
-                },
-                "files": [
-                    "helpers/helpers.php"
-                ]
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Laravel form builder - symfony like",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/form-builder"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/get-started",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/get-started",
-                "reference": "3f0f3263813c69d722998b6ae509441c00472c85"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\GetStarted\\Providers\\GetStartedServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\GetStarted\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Make site ready in few steps",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/get-started"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/installer",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/installer",
-                "reference": "d31f3957549a5537ce6f5c0d088a899fcb4613bc"
-            },
-            "require": {
-                "kern/platform": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Installer\\Providers\\InstallerServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Installer\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Installer package for Kern CMS application",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/installer"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/menu",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/menu",
-                "reference": "d870311e4670cb6dbddfe554aa7a72da6e589835"
-            },
-            "require": {
-                "kern/platform": "^1.0",
-                "kern/theme": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Menu\\Providers\\MenuServiceProvider"
-                    ],
-                    "aliases": {
-                        "Menu": "Kern\\Menu\\Facades\\Menu"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Menu\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Menu package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/menu"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/optimize",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/optimize",
-                "reference": "f240ef35daac279a6371b49b92b4ea2125b60baf"
-            },
-            "require": {
-                "kern/platform": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Optimize\\Providers\\OptimizeServiceProvider"
-                    ],
-                    "aliases": {
-                        "OptimizerHelper": "Kern\\Optimize\\Facades\\OptimizerHelper"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Optimize\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Optimize page speed package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/optimize"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/page",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/page",
-                "reference": "a599a5af9a7ed643cc83caa165982f5ef7cd3656"
-            },
-            "require": {
-                "kern/platform": "^1.0",
-                "kern/revision": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Page\\Providers\\PageServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Page\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Page package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/page"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/platform",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/core",
-                "reference": "24cc168c17a4ca3fc5b73ef84a486b58f1e32a22"
-            },
-            "require": {
-                "barryvdh/laravel-dompdf": "^3.0",
-                "ext-gd": "*",
-                "ext-zip": "*",
-                "intervention/image": "^3.4",
-                "kern/assets": "^1.0",
-                "kern/form-builder": "^1.0",
-                "laravel/framework": "^13.0",
-                "laravel/sanctum": "^4.3",
-                "league/flysystem-aws-s3-v3": "^3.0",
-                "maatwebsite/excel": "^3.1",
-                "maennchen/zipstream-php": "3.1.*",
-                "mews/purifier": "^3.3",
-                "php": "^8.4",
-                "symfony/http-client": "^7.4 || ^8.0",
-                "symfony/mailgun-mailer": "^7.4 || ^8.0",
-                "symfony/postmark-mailer": "^7.4 || ^8.0",
-                "twig/twig": "^3.14",
-                "yajra/laravel-datatables-buttons": "^13.0",
-                "yajra/laravel-datatables-oracle": "^13.0"
-            },
-            "type": "project",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Base\\Providers\\BaseServiceProvider",
-                        "Kern\\Base\\Providers\\CommandServiceProvider",
-                        "Kern\\Base\\Providers\\EventServiceProvider",
-                        "Kern\\Base\\Providers\\ComposerServiceProvider",
-                        "Kern\\Base\\Providers\\MailConfigServiceProvider",
-                        "Kern\\Base\\Providers\\FormServiceProvider",
-                        "Kern\\Support\\Providers\\SupportServiceProvider",
-                        "Kern\\Table\\Providers\\TableServiceProvider",
-                        "Kern\\ACL\\Providers\\AclServiceProvider",
-                        "Kern\\Dashboard\\Providers\\DashboardServiceProvider",
-                        "Kern\\Media\\Providers\\MediaServiceProvider",
-                        "Kern\\JsValidation\\Providers\\JsValidationServiceProvider",
-                        "Kern\\Chart\\Providers\\ChartServiceProvider",
-                        "Kern\\Icon\\Providers\\IconServiceProvider"
-                    ],
-                    "aliases": {
-                        "Action": "Kern\\Base\\Facades\\Action",
-                        "AdminAppearance": "Kern\\Base\\Facades\\AdminAppearance",
-                        "AdminHelper": "Kern\\Base\\Facades\\AdminHelper",
-                        "Assets": "Kern\\Base\\Facades\\Assets",
-                        "BaseHelper": "Kern\\Base\\Facades\\BaseHelper",
-                        "DashboardMenu": "Kern\\Base\\Facades\\DashboardMenu",
-                        "CoreIcon": "Kern\\Icon\\Facades\\Icon",
-                        "EmailHandler": "Kern\\Base\\Facades\\EmailHandler",
-                        "Filter": "Kern\\Base\\Facades\\Filter",
-                        "Form": "Kern\\Base\\Facades\\Form",
-                        "Html": "Kern\\Base\\Facades\\Html",
-                        "JsValidator": "Kern\\JsValidation\\Facades\\JsValidator",
-                        "MacroableModels": "Kern\\Base\\Facades\\MacroableModels",
-                        "MetaBox": "Kern\\Base\\Facades\\MetaBox",
-                        "PageTitle": "Kern\\Base\\Facades\\PageTitle",
-                        "PanelSectionManager": "Kern\\Base\\Facades\\PanelSectionManager",
-                        "RvMedia": "Kern\\Media\\Facades\\RvMedia",
-                        "Setting": "Kern\\Setting\\Facades\\Setting"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Support\\": "support/src",
-                    "Kern\\ACL\\": "acl/src",
-                    "Kern\\Base\\": "base/src",
-                    "Kern\\Base\\Tests\\": "base/tests",
-                    "Kern\\Dashboard\\": "dashboard/src",
-                    "Kern\\Media\\": "media/src",
-                    "Kern\\Setting\\": "setting/src",
-                    "Kern\\Table\\": "table/src",
-                    "Kern\\JsValidation\\": "js-validation/src",
-                    "Kern\\Chart\\": "chart/src",
-                    "Kern\\Icon\\": "icon/src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "The Kern Platform based on Laravel Framework.",
-            "keywords": [
-                "kern",
-                "kern cms",
-                "kern platform"
-            ],
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/core"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/plugin-management",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/plugin-management",
-                "reference": "c100a9485d21afb2301e8dcdb488b3d51bede428"
-            },
-            "require": {
-                "kern/platform": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\PluginManagement\\Providers\\PluginManagementServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\PluginManagement\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Plugin management package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/plugin-management"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/revision",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/revision",
-                "reference": "0414273bab7158799acc64a9b4cfecd27e8ddde3"
-            },
-            "require": {
-                "kern/platform": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Revision\\Providers\\RevisionServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Revision\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Revision package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/revision"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/seo-helper",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/seo-helper",
-                "reference": "afcabaf70a4ce6bde9789713321cd0d2a48119ec"
-            },
-            "require": {
-                "kern/platform": "^1.0",
-                "kern/theme": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\SeoHelper\\Providers\\SeoHelperServiceProvider"
-                    ],
-                    "aliases": {
-                        "SeoHelper": "Kern\\SeoHelper\\Facades\\SeoHelper"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\SeoHelper\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "SEO helper package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/seo-helper"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/shortcode",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/shortcode",
-                "reference": "00706180a86e56194b1f1153f5a1a3aaaf45bb12"
-            },
-            "require": {
-                "kern/platform": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Shortcode\\Providers\\ShortcodeServiceProvider"
-                    ],
-                    "aliases": {
-                        "Shortcode": "Kern\\Shortcode\\Facades\\Shortcode"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Shortcode\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Shortcode package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/shortcode"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/sitemap",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/sitemap",
-                "reference": "15d30175d5b43b097843539ef7877602794e902d"
-            },
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Sitemap\\Providers\\SitemapServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Sitemap\\": "src"
-                }
-            },
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Sitemap package for Laravel.",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/sitemap"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/slug",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/slug",
-                "reference": "dca56e9677781b4c7dcd0996187df4aacbe3223f"
-            },
-            "require": {
-                "kern/platform": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Slug\\Providers\\SlugServiceProvider"
-                    ],
-                    "aliases": {
-                        "SlugHelper": "Kern\\Slug\\Facades\\SlugHelper"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Slug\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Slug/Permalink",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/slug"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/theme",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/theme",
-                "reference": "22533662ac66f8c4813e7e94bff6befa26b4d52e"
-            },
-            "require": {
-                "kern/platform": "^1.0",
-                "kern/seo-helper": "^1.0",
-                "kern/sitemap": "^1.0",
-                "kern/slug": "^1.0",
-                "kern/widget": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Theme\\Providers\\ThemeServiceProvider",
-                        "Kern\\Theme\\Providers\\RouteServiceProvider"
-                    ],
-                    "aliases": {
-                        "Theme": "Kern\\Theme\\Facades\\Theme",
-                        "ThemeOption": "Kern\\Theme\\Facades\\ThemeOption",
-                        "ThemeManager": "Kern\\Theme\\Facades\\Manager",
-                        "AdminBar": "Kern\\Theme\\Facades\\AdminBar",
-                        "SiteMapManager": "Kern\\Theme\\Facades\\SiteMapManager"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Theme\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Theme package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/theme"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
-        },
-        {
-            "name": "kern/widget",
-            "version": "1.0.0",
-            "dist": {
-                "type": "path",
-                "url": "platform/packages/widget",
-                "reference": "719ef1387565ea6e43cb50bb5ee06f5647b8c8da"
-            },
-            "require": {
-                "kern/platform": "^1.0",
-                "kern/theme": "^1.0"
-            },
-            "type": "package",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Kern\\Widget\\Providers\\WidgetServiceProvider"
-                    ],
-                    "aliases": {
-                        "Widget": "Kern\\Widget\\Facades\\Widget",
-                        "WidgetGroup": "Kern\\Widget\\Facades\\WidgetGroup"
-                    }
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Kern\\Widget\\": "src"
-                }
-            },
-            "authors": [
-                {
-                    "name": "Binh Tran",
-                    "email": "quocbinhkrb@gmail.com",
-                    "homepage": "https://github.com/binhtq1",
-                    "role": "Maintainer"
-                }
-            ],
-            "description": "Widget package",
-            "support": {
-                "email": "quocbinhkrb@gmail.com",
-                "issues": "https://github.com/binhtq1/kern-cms/issues",
-                "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/widget"
-            },
-            "transport-options": {
-                "symlink": true,
-                "relative": true
-            }
         },
         {
             "name": "knuckleswtf/scribe",

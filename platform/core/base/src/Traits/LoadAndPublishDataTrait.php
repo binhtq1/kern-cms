@@ -31,7 +31,7 @@ trait LoadAndPublishDataTrait
         $modulePath = str_replace('/src/Providers', '', File::dirname($reflection->getFilename()));
 
         if (! Str::contains($modulePath, base_path('platform/plugins'))) {
-            $modulePath = base_path('platform/'.$this->getDashedNamespace());
+            $modulePath = dirname(__DIR__, 4).'/'.$this->getDashedNamespace();
         }
 
         return $modulePath.($path ? '/'.ltrim($path, '/') : '');

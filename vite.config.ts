@@ -9,16 +9,17 @@ import { globSync } from "glob";
 import {
     createPageRegistry,
     type PageRegistration,
-} from "./platform/core/base/resources/js/admin/lib/page-registry";
+} from "./vendor/binhtq1/kern-core/core/base/resources/js/admin/lib/page-registry";
 
 export default defineConfig({
     plugins: [
         {
             name: "admin-extension-registry",
             generateBundle() {
-                const registrationFiles = globSync(
-                    "platform/{core,packages,plugins}/*/resources/js/admin/registration.json",
-                ).sort();
+                const registrationFiles = globSync([
+                    "vendor/binhtq1/kern-core/{core,packages}/*/resources/js/admin/registration.json",
+                    "platform/plugins/*/resources/js/admin/registration.json",
+                ]).sort();
                 const registrations: Record<string, PageRegistration> = {};
                 const sources: Record<string, string> = {};
                 for (const file of registrationFiles) {
@@ -26,15 +27,19 @@ export default defineConfig({
                     registrations[`../../${file}`] = JSON.parse(source);
                     sources[file] = source;
                 }
-                const files = globSync(
-                    "platform/{core,packages,plugins}/*/resources/js/admin/**/*.tsx",
-                ).map((file) => `../../${file}`);
+                const files = globSync([
+                    "vendor/binhtq1/kern-core/{core,packages}/*/resources/js/admin/**/*.tsx",
+                    "platform/plugins/*/resources/js/admin/**/*.tsx",
+                ]).map((file) => `../../${file}`);
                 const pages = createPageRegistry(registrations, files);
                 const packages = Object.fromEntries(
                     registrationFiles.map((file) => {
                         const packagePath = file
                             .split("/")
-                            .slice(1, 3)
+                            .slice(
+                                file.startsWith("vendor/") ? 3 : 1,
+                                file.startsWith("vendor/") ? 5 : 3,
+                            )
                             .join("/");
                         const prefix = `../../${file.slice(0, -"registration.json".length)}`;
                         return [
@@ -74,7 +79,7 @@ export default defineConfig({
         alias: {
             "@admin": fileURLToPath(
                 new URL(
-                    "./platform/core/base/resources/js/admin",
+                    "./vendor/binhtq1/kern-core/core/base/resources/js/admin",
                     import.meta.url,
                 ),
             ),

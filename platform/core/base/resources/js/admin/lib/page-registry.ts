@@ -25,7 +25,7 @@ export function createPageRegistry(
     const namespaces = new Set<string>();
     for (const [path, registration] of Object.entries(registrations).sort()) {
         if (
-            !/^\.\.\/\.\.\/platform\/(core|packages|plugins)\/[a-z0-9-]+\/resources\/js\/admin\/registration\.json$/.test(
+            !/^\.\.\/\.\.\/(?:platform\/(?:core|packages|plugins)|vendor\/binhtq1\/kern-core\/(?:core|packages))\/[a-z0-9-]+\/resources\/js\/admin\/registration\.json$/.test(
                 path,
             ) ||
             registration.version !== 1 ||

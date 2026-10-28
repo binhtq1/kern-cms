@@ -91,6 +91,10 @@ class BaseServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (is_dir(core_path('../public/build/admin'))) {
+            $this->publishes([core_path('../public/build/admin') => public_path('build/admin')], 'cms-public');
+        }
+
         $this
             ->loadAndPublishConfigurations(['permissions', 'assets'])
             ->loadAndPublishViews()

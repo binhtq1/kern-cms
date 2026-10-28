@@ -2,8 +2,12 @@ import { build } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import postcss from 'postcss'
 import rtlcss from 'rtlcss'
-import { mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, watch, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+
+const runtime = 'vendor/binhtq1/kern-core'
+const managedRuntime = existsSync(runtime) && realpathSync(runtime) !== (existsSync('platform') ? realpathSync('platform') : '')
+const sourcePath = path => managedRuntime && /^(core|packages)\//.test(path) ? `${runtime}/${path}` : `platform/${path}`
 
 const packages = [
     ['core/base', {
@@ -29,10 +33,10 @@ const validationFiles = [
     'jquery-validation/jquery.validate.js', 'phpjs/strlen.js', 'phpjs/array_diff.js',
     'phpjs/strtotime.js', 'phpjs/is_numeric.js', 'php-date-formatter/php-date-formatter.js',
     'js-validation.js', 'helpers.js', 'timezones.js', 'validations.js',
-].map((file) => `platform/core/js-validation/resources/js/${file}`)
+].map((file) => sourcePath(`core/js-validation/resources/js/${file}`))
 
 function destinations(packageName, output) {
-    return [`platform/${packageName}/public/${output}`, `public/vendor/core/${packageName}/${output}`]
+    return [...(managedRuntime && /^(core|packages)\//.test(packageName) ? [] : [`platform/${packageName}/public/${output}`]), `public/vendor/core/${packageName}/${output}`]
 }
 
 let pendingOutput = new Map()
@@ -105,14 +109,14 @@ async function buildPublicAssets() {
     for (const [packageName, entries] of packages) {
         for (const name of entries.css ?? []) {
             const cssName = name === 'libraries/select2/select2' ? 'libraries/select2' : name.replace(/^components\//, '')
-            const css = await compile(packageName, 'css', `platform/${packageName}/resources/sass/${name}.scss`, `css/${cssName}.css`)
+            const css = await compile(packageName, 'css', sourcePath(`${packageName}/resources/sass/${name}.scss`), `css/${cssName}.css`)
             if (packageName === 'core/base' && ['core', 'libraries/select2/select2'].includes(name)) {
                 const rtlPath = name === 'core' ? 'css/core.rtl.css' : 'css/libraries/select2.rtl.css'
                 writeOutput(packageName, rtlPath, (await postcss([rtlcss()]).process(css, { from: undefined })).css)
             }
         }
         for (const name of entries.js ?? []) {
-            await compile(packageName, 'js', `platform/${packageName}/resources/js/${name}.js`, `js/${name.replace(/^form\//, '')}.js`)
+            await compile(packageName, 'js', sourcePath(`${packageName}/resources/js/${name}.js`), `js/${name.replace(/^form\//, '')}.js`)
         }
         console.log(`Built ${packageName}`)
     }
@@ -146,7 +150,7 @@ if (process.argv.includes('--watch')) {
             if (queued) { queued = false; rebuild() }
         }
     }
-    for (const directory of [...packages.map(([name]) => `platform/${name}/resources`), 'platform/core/js-validation/resources']) {
+    for (const directory of [...packages.map(([name]) => sourcePath(`${name}/resources`)), sourcePath('core/js-validation/resources')]) {
         watch(directory, { recursive: true }, (_event, filename) => {
             if (!filename || !/\.(?:js|vue|scss|css)$/.test(filename.toString()) || filename.toString().includes('/admin/')) return
             clearTimeout(timer)

@@ -103,6 +103,10 @@ jobs:
           npm run typecheck:admin
           npm run lint:admin
           npm run test:admin
+      - name: Check runtime manifest
+        run: |
+          node scripts/build-core-manifest.mjs
+          git diff --exit-code -- platform/composer.json
       - name: Build React admin
         run: |
           npm run build:admin
@@ -114,7 +118,7 @@ jobs:
         if: matrix.database == 'sqlite'
         run: |
           npm run test:themes
-          node --test tests/ReleasePackage.test.mjs
+          node --test tests/ReleasePackage.test.mjs tests/CorePackage.test.mjs
       - name: Build public site assets
         if: matrix.database == 'sqlite'
         run: |

@@ -19,7 +19,7 @@ import {
 import { initializeTheme } from "@admin/lib/theme";
 import { createInertiaApp, type ResolvedComponent } from "@inertiajs/react";
 import { createRoot } from "react-dom/client";
-import "../../platform/core/base/resources/css/admin.css";
+import "../../vendor/binhtq1/kern-core/core/base/resources/css/admin.css";
 initializeTheme();
 const uninstallApi = installAdminApi();
 const uninstallReporting = installClientErrorReporting();
@@ -28,15 +28,16 @@ import.meta.hot?.dispose(() => {
     uninstallReporting();
 });
 const files = import.meta.glob<{ default: ResolvedComponent }>([
-    "../../platform/core/*/resources/js/admin/**/*.tsx",
-    "../../platform/packages/*/resources/js/admin/**/*.tsx",
+    "../../vendor/binhtq1/kern-core/core/*/resources/js/admin/**/*.tsx",
+    "../../vendor/binhtq1/kern-core/packages/*/resources/js/admin/**/*.tsx",
     "../../platform/plugins/*/resources/js/admin/**/*.tsx",
     "!../../platform/*/*/resources/js/admin/**/{components,_components,hooks,lib}/**/*.tsx",
+    "!../../vendor/binhtq1/kern-core/*/*/resources/js/admin/**/{components,_components,hooks,lib}/**/*.tsx",
 ]);
 const registrations = import.meta.glob<PageRegistration>(
     [
-        "../../platform/core/*/resources/js/admin/registration.json",
-        "../../platform/packages/*/resources/js/admin/registration.json",
+        "../../vendor/binhtq1/kern-core/core/*/resources/js/admin/registration.json",
+        "../../vendor/binhtq1/kern-core/packages/*/resources/js/admin/registration.json",
         "../../platform/plugins/*/resources/js/admin/registration.json",
     ],
     { eager: true, import: "default" },

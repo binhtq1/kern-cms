@@ -1,9 +1,11 @@
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 const [version, destination] = process.argv.slice(2)
 const root = process.cwd()
+const splitRuntime = Number(version?.split('.')[0]) > 0 || Number(version?.split('.')[1]) >= 2
 
 function fail(message) {
     throw new Error(message)
@@ -12,6 +14,8 @@ function fail(message) {
 if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version ?? '') || !destination) {
     fail('Usage: node scripts/prepare-release.mjs <version: X.Y.Z> <new-directory>')
 }
+
+if (splitRuntime && !/^[a-f0-9]{40}$/.test(process.env.CORE_REFERENCE ?? '')) throw new Error('CORE_REFERENCE must identify the verified runtime commit.')
 
 const target = resolve(destination)
 if (existsSync(target)) fail(`Release directory already exists: ${target}`)
@@ -58,6 +62,7 @@ const files = new Set(['.editorconfig', '.gitattributes', '.gitignore', '.npmrc'
 const paths = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean)
 
 function include(path) {
+    if (splitRuntime && /^(platform\/(core\/|packages\/|bin\/|public\/|composer.json)|public\/build\/admin\/)/.test(path)) return false
     if (path === '.env.example') return true
     const parts = path.split('/')
     if (parts.some((part) => part === '.env' || part.startsWith('.env.') || ['node_modules', '.git'].includes(part))) return false
@@ -85,7 +90,34 @@ function copy(path) {
 
 mkdirSync(target, { recursive: true })
 for (const path of paths.filter(include)) copy(path)
-for (const directory of builtDirectories) copy(directory)
+for (const directory of builtDirectories) {
+    if (!splitRuntime || directory !== 'public/build/admin') copy(directory)
+}
+
+if (splitRuntime) {
+    const manifestPath = join(target, 'composer.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    delete manifest.repositories
+    manifest.require['binhtq1/kern-core'] = `^${version}`
+    const lockPath = join(target, 'composer.lock')
+    const lock = JSON.parse(readFileSync(lockPath, 'utf8'))
+    const core = lock.packages.find(pkg => pkg.name === 'binhtq1/kern-core')
+    if (!core) fail('Install the split runtime before packaging.')
+    core.version = version
+    core.source = { type: 'git', url: 'https://github.com/binhtq1/kern-core.git', reference: process.env.CORE_REFERENCE }
+    core.dist = { type: 'zip', url: `https://api.github.com/repos/binhtq1/kern-core/zipball/${process.env.CORE_REFERENCE}`, reference: process.env.CORE_REFERENCE, shasum: '' }
+    delete core['transport-options']
+    const relevant = {}
+    for (const key of ['name', 'version', 'require', 'require-dev', 'conflict', 'replace', 'provide', 'minimum-stability', 'prefer-stable', 'repositories', 'extra'].sort()) {
+        if (Object.hasOwn(manifest, key)) relevant[key] = manifest[key]
+    }
+    if (manifest.config?.platform) relevant.config = { platform: manifest.config.platform }
+    const sorted = Object.fromEntries(Object.entries(relevant).sort(([a], [b]) => a.localeCompare(b)))
+    const encoded = JSON.stringify(sorted).replace(/\//g, '\\/').replace(/[^\x00-\x7f]/g, char => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`)
+    lock['content-hash'] = createHash('md5').update(encoded).digest('hex')
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 4) + '\n')
+    writeFileSync(lockPath, JSON.stringify(lock, null, 4) + '\n')
+}
 
 for (const directory of ['app/public', 'framework/cache/data', 'framework/cache/locks', 'framework/sessions', 'framework/testing', 'framework/views', 'logs']) {
     const path = join(target, 'storage', directory)

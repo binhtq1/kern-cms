@@ -23,28 +23,13 @@
         "framework"
     ],
     "require": {
-        "php": "^8.4",
+        "binhtq1/kern-core": "^0.2.0",
         "google/analytics-data": "^0.23 || ^0.24",
         "inertiajs/inertia-laravel": "^3.0",
-        "kern/api": "^1.0",
-        "kern/data-synchronize": "^1.0",
-        "kern/get-started": "^1.0",
-        "kern/installer": "^1.0",
-        "kern/menu": "^1.0",
-        "kern/optimize": "^1.0",
-        "kern/page": "^1.0",
-        "kern/platform": "^1.0",
-        "kern/plugin-management": "^1.0",
-        "kern/revision": "^1.0",
-        "kern/seo-helper": "^1.0",
-        "kern/shortcode": "^1.0",
-        "kern/sitemap": "^1.0",
-        "kern/slug": "^1.0",
-        "kern/theme": "^1.0",
-        "kern/widget": "^1.0",
         "laravel/framework": "^13.0",
         "laravel/socialite": "^5.0",
         "laravel/tinker": "^3.0",
+        "php": "^8.4",
         "phpseclib/bcmath_compat": "^2.0",
         "predis/predis": "^3.0",
         "symfony/var-exporter": "^7.4 || ^8.0"
@@ -79,10 +64,6 @@
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
         ],
-        "post-update-cmd": [
-            "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
-            "@php artisan cms:publish:assets"
-        ],
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
         ],
@@ -115,16 +96,12 @@
     "repositories": [
         {
             "type": "path",
-            "url": "platform/core",
+            "url": "platform",
             "options": {
-                "symlink": true
-            }
-        },
-        {
-            "type": "path",
-            "url": "platform/packages/*",
-            "options": {
-                "symlink": true
+                "symlink": true,
+                "versions": {
+                    "binhtq1/kern-core": "0.2.0"
+                }
             }
         }
     ]

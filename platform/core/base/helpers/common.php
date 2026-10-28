@@ -73,7 +73,7 @@ if (! function_exists('get_cms_version')) {
 if (! function_exists('get_core_version')) {
     function get_core_version(): string
     {
-        return Core::make()->version();
+        return Core::make()->compatibilityVersion();
     }
 }
 
@@ -92,6 +92,10 @@ if (! function_exists('platform_path')) {
     function platform_path(?string $path = null): string
     {
         $path = ltrim($path ?? '', DIRECTORY_SEPARATOR);
+
+        if (preg_match('#^(core|packages)(/|$)#', str_replace(DIRECTORY_SEPARATOR, '/', $path))) {
+            return dirname(__DIR__, 3).DIRECTORY_SEPARATOR.$path;
+        }
 
         return base_path('platform'.($path ? DIRECTORY_SEPARATOR.$path : ''));
     }

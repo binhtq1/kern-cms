@@ -13,7 +13,9 @@
         "types": ["vite/client"],
         "baseUrl": ".",
         "paths": {
-            "@admin/*": ["platform/core/base/resources/js/admin/*"]
+            "@admin/*": [
+                "vendor/binhtq1/kern-core/core/base/resources/js/admin/*"
+            ]
         }
     },
     "include": [

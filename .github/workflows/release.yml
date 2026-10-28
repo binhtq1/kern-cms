@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Stable version without v (for example, 0.1.0)"
+        description: "Stable version without v (for example, 0.2.0)"
         required: true
         type: string
       publish:
-        description: "Publish the verified distribution tag and GitHub release"
+        description: "Publish verified kern-core and kern-cms distributions"
         default: false
         type: boolean
 
@@ -27,10 +27,6 @@ jobs:
       RELEASE_VERSION: ${{ inputs.version }}
       SOURCE_REVISION: ${{ github.sha }}
     steps:
-      - name: Initialize release paths
-        run: |
-          printf 'RELEASE_ROOT=%s/kern-release\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-          printf 'ARTIFACT_ROOT=%s/kern-artifacts\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
@@ -42,49 +38,20 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - name: Build the distribution
+      - name: Build and package both distributions
         run: |
-          composer validate --no-check-publish
+          composer validate --strict
+          composer install --prefer-dist --no-interaction --no-progress --no-scripts
           npm ci --no-audit
-          node --test tests/ReleasePackage.test.mjs
+          node --test tests/ReleasePackage.test.mjs tests/CorePackage.test.mjs
           npm run build
-          node scripts/prepare-release.mjs "$RELEASE_VERSION" "$RELEASE_ROOT"
-          mkdir -p "$ARTIFACT_ROOT"
-          composer --working-dir="$RELEASE_ROOT" archive --format=zip --dir="$ARTIFACT_ROOT" --file="kern-cms-$RELEASE_VERSION"
-      - name: Test real Composer installations
-        run: |
-          repository=$(jq -cn --arg version "$RELEASE_VERSION" --arg url "file://$ARTIFACT_ROOT/kern-cms-$RELEASE_VERSION.zip" '{type: "package", package: {name: "binhtq1/kern-cms", version: $version, dist: {type: "zip", url: $url}}}')
-          for mode in default no-dev; do
-            project="$RUNNER_TEMP/kern-$mode-with-a-long-installation-directory"
-            options=()
-            theme=magazine
-            if [[ "$mode" == no-dev ]]; then
-              options+=(--no-dev)
-              theme=ripple
-            fi
-            composer create-project --repository="$repository" --no-interaction --prefer-dist "${options[@]}" binhtq1/kern-cms "$project" "$RELEASE_VERSION"
-            php "$project/scripts/check-project.php" "$theme"
-            if php "$project/scripts/check-project.php" "$theme" > "$RUNNER_TEMP/kern-$mode-guard.log" 2>&1; then
-              printf 'The project check must reject an already installed website.\n' >&2
-              exit 1
-            fi
-          done
-      - name: Create distribution tag locally
-        working-directory: ${{ env.RELEASE_ROOT }}
-        run: |
-          git init --initial-branch=distribution
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --all --force
-          git commit -m "Release Kern CMS $RELEASE_VERSION" -m "Source: $SOURCE_REVISION"
-          git tag "v$RELEASE_VERSION"
-          git bundle create "$ARTIFACT_ROOT/kern-cms-$RELEASE_VERSION.bundle" "refs/tags/v$RELEASE_VERSION"
-          cd "$ARTIFACT_ROOT"
-          sha256sum "kern-cms-$RELEASE_VERSION.zip" > SHA256SUMS
+          bash scripts/build-release.sh "$RELEASE_VERSION" "$RUNNER_TEMP/kern-release" "$RUNNER_TEMP/kern-artifacts"
+      - name: Verify new installations and upgrade from the published 0.1.0
+        run: bash scripts/test-release.sh "$RELEASE_VERSION" "$RUNNER_TEMP/kern-artifacts"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: composer-release
-          path: ${{ env.ARTIFACT_ROOT }}/
+          path: ${{ runner.temp }}/kern-artifacts/
           retention-days: 14
 
   publish:
@@ -96,16 +63,35 @@ jobs:
       contents: write
     env:
       RELEASE_VERSION: ${{ inputs.version }}
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Download the verified distribution
-        run: gh run download "$GITHUB_RUN_ID" --name composer-release --dir "$RUNNER_TEMP/kern-artifacts"
-      - name: Publish the distribution tag and release
+      - name: Download the verified distributions
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          gh run download "$GITHUB_RUN_ID" --name composer-release --dir "$RUNNER_TEMP/kern-artifacts"
           cd "$RUNNER_TEMP/kern-artifacts"
           sha256sum --check SHA256SUMS
-          cd "$GITHUB_WORKSPACE"
-          git fetch "$RUNNER_TEMP/kern-artifacts/kern-cms-$RELEASE_VERSION.bundle" "refs/tags/v$RELEASE_VERSION:refs/tags/v$RELEASE_VERSION"
-          git push origin "refs/tags/v$RELEASE_VERSION"
-          gh release create "v$RELEASE_VERSION" --verify-tag --title "Kern CMS $RELEASE_VERSION" --notes "Install with: composer create-project binhtq1/kern-cms my-website $RELEASE_VERSION" "$RUNNER_TEMP/kern-artifacts/kern-cms-$RELEASE_VERSION.zip" "$RUNNER_TEMP/kern-artifacts/SHA256SUMS"
+      - name: Publish kern-core first
+        env:
+          GH_TOKEN: ${{ secrets.CORE_RELEASE_TOKEN }}
+        run: |
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo 'Set CORE_RELEASE_TOKEN with Contents write access to binhtq1/kern-core.' >&2
+            exit 1
+          fi
+          bash scripts/publish-release.sh kern-core "$RELEASE_VERSION" "$RUNNER_TEMP/kern-artifacts"
+      - name: Wait for the runtime to be available on Packagist
+        run: |
+          for attempt in {1..12}; do
+            if curl --fail --silent https://repo.packagist.org/p2/binhtq1/kern-core.json | jq -e --arg version "$RELEASE_VERSION" '.packages["binhtq1/kern-core"][] | select(.version == $version or .version == ("v" + $version))' >/dev/null; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'kern-core is not indexed yet. Register/refresh binhtq1/kern-core on Packagist, then rerun the failed publish job.' >&2
+          exit 1
+      - name: Publish kern-cms starter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/publish-release.sh kern-cms "$RELEASE_VERSION" "$RUNNER_TEMP/kern-artifacts"

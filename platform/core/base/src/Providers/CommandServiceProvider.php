@@ -12,6 +12,7 @@ use Kern\Base\Commands\FetchGoogleFontsCommand;
 use Kern\Base\Commands\ImportDatabaseCommand;
 use Kern\Base\Commands\InstallCommand;
 use Kern\Base\Commands\PublishAssetsCommand;
+use Kern\Base\Commands\UpgradeCommand;
 use Kern\Base\Supports\ServiceProvider;
 
 class CommandServiceProvider extends ServiceProvider
@@ -31,6 +32,7 @@ class CommandServiceProvider extends ServiceProvider
             ImportDatabaseCommand::class,
             InstallCommand::class,
             PublishAssetsCommand::class,
+            UpgradeCommand::class,
         ]);
 
         AboutCommand::add('Core Information', fn () => [

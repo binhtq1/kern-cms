@@ -13,6 +13,11 @@ final class Core
 
     public function version(): string
     {
+        return json_decode(file_get_contents(core_path('base/resources/version.json')), true, flags: JSON_THROW_ON_ERROR)['version'];
+    }
+
+    public function compatibilityVersion(): string
+    {
         return '1.0.0';
     }
 

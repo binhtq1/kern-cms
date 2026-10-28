@@ -138,3 +138,41 @@ test("root and nested extension namespaces exclude support directories but prese
         "Screens/mixedCase/Detail",
     ]);
 });
+
+test("Composer runtime pages resolve alongside site-owned plugin pages", () => {
+    const runtime =
+        "../../vendor/binhtq1/kern-core/core/acl/resources/js/admin/";
+    const plugin = "../../platform/plugins/customer/resources/js/admin/";
+    const registry = createPageRegistry(
+        {
+            [`${runtime}registration.json`]: {
+                version: 1,
+                namespaces: { Auth: "" },
+            },
+            [`${plugin}registration.json`]: {
+                version: 1,
+                namespaces: { Customer: "" },
+            },
+        },
+        [`${runtime}Login.tsx`, `${plugin}Index.tsx`],
+    );
+    assert.equal(
+        registeredPagePath(registry, "Auth/Login"),
+        `${runtime}Login.tsx`,
+    );
+    assert.equal(
+        registeredPagePath(registry, "Customer/Index"),
+        `${plugin}Index.tsx`,
+    );
+    assert.throws(
+        () =>
+            createPageRegistry(
+                {
+                    "../../vendor/another/package/core/acl/resources/js/admin/registration.json":
+                        { version: 1, namespaces: { Unsafe: "" } },
+                },
+                [],
+            ),
+        /Invalid admin registration/,
+    );
+});
