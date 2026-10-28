@@ -1,0 +1,27 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "jsx": "react-jsx",
+        "strict": true,
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "types": ["vite/client"],
+        "baseUrl": ".",
+        "paths": {
+            "@admin/*": [
+                "vendor/binhtq1/kern-core/core/base/resources/js/admin/*"
+            ]
+        }
+    },
+    "include": [
+        "resources/js/admin.tsx",
+        "platform/**/resources/js/admin/**/*.ts",
+        "platform/**/resources/js/admin/**/*.tsx",
+        "vite.config.ts"
+    ]
+}
