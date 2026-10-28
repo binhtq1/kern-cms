@@ -1,0 +1,34 @@
+{
+    "support": {
+        "email": "quocbinhkrb@gmail.com",
+        "issues": "https://github.com/binhtq1/kern-cms/issues",
+        "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/installer"
+    },
+    "authors": [
+        {
+            "name": "Binh Tran",
+            "email": "quocbinhkrb@gmail.com",
+            "homepage": "https://github.com/binhtq1",
+            "role": "Maintainer"
+        }
+    ],
+    "name": "kern/installer",
+    "description": "Installer package for Kern CMS application",
+    "type": "package",
+    "autoload": {
+        "psr-4": {
+            "Kern\\Installer\\": "src"
+        }
+    },
+    "require": {
+        "kern/platform": "^1.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Kern\\Installer\\Providers\\InstallerServiceProvider"
+            ]
+        }
+    },
+    "version": "1.0.0"
+}

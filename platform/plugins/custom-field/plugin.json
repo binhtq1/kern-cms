@@ -1,0 +1,11 @@
+{
+    "id": "kern/custom-fields",
+    "name": "Custom Fields",
+    "namespace": "Kern\\CustomField\\",
+    "provider": "Kern\\CustomField\\Providers\\CustomFieldServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/custom-field",
+    "version": "2.1.6",
+    "description": "Custom Fields",
+    "minimum_core_version": "1.0.0"
+}

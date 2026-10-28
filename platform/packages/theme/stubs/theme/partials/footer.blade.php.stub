@@ -1,0 +1,6 @@
+<footer class="site-footer container">
+    {{ theme_option('site_title') ?: config('app.name') }}
+</footer>
+{!! Theme::footer() !!}
+</body>
+</html>

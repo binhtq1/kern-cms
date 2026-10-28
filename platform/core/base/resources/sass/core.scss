@@ -1,0 +1,30 @@
+@use './partials/utilities' as utilities;
+@use '@tabler/core/scss/tabler' as * with (
+    $utilities: utilities.$utilities,
+    $enable-deprecated: false,
+);
+@use '@tabler/core/scss/vendor/coloris';
+
+@use 'partials/image-picker';
+@use 'partials/flags';
+@use 'partials/notification';
+@use 'partials/dashboard';
+@use 'partials/custom';
+@use 'partials/acl';
+@use 'partials/loading';
+@use 'partials/modal';
+@use 'partials/navbar';
+@use 'partials/setting';
+@use 'partials/widget';
+@use 'partials/dropzone';
+@use 'partials/datetimepicker';
+@use 'partials/rtl';
+@use 'partials/ui-selector';
+@use 'partials/form';
+@use 'partials/global-search';
+@use 'partials/table-mobile-responsive';
+
+
+@use 'partials/variable';
+
+@use 'partials/old-style';

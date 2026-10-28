@@ -1,0 +1,15 @@
+<?php if ($showStart) { ?>
+    <?= Form::open($formOptions) ?>
+<?php } ?>
+
+<?php if ($showFields) { ?>
+    <?php foreach ($fields as $field) { ?>
+    	<?php if (! in_array($field->getName(), $exclude)) { ?>
+        	<?= $field->render() ?>
+		<?php } ?>
+    <?php } ?>
+<?php } ?>
+
+<?php if ($showEnd) { ?>
+    <?= Form::close() ?>
+<?php } ?>

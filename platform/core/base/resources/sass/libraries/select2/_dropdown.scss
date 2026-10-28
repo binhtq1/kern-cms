@@ -1,0 +1,107 @@
+@use "@tabler/core/scss/config";
+@use "variables";
+
+.select2-container--default {
+    + .select2-container--default {
+        z-index: variables.$s2bs5-zindex;
+    }
+
+    .select2-dropdown {
+        z-index: variables.$s2bs5-zindex;
+        overflow: hidden;
+        background: var(--bg-surface);
+        color: var(--body-color);
+        box-shadow: var(--box-shadow-dropdown);
+        border: 1px solid var(--border-color-translucent);
+        @include config.border-radius(variables.$s2bs5-border-radius);
+
+        &.select2-dropdown--below {
+            border-top: 0 solid transparent;
+            @include config.border-top-radius(0);
+        }
+
+        &.select2-dropdown--above {
+            border-bottom: 0 solid transparent;
+            @include config.border-bottom-radius(0);
+        }
+
+        .select2-search {
+            padding: variables.$s2bs5-padding-y variables.$s2bs5-padding-x;
+
+            .select2-search__field {
+                display: block;
+                width: 100%;
+                padding: variables.$s2bs5-padding-y variables.$s2bs5-padding-x;
+                font-family: variables.$s2bs5-font-family;
+                @include config.font-size(variables.$s2bs5-font-size);
+                font-weight: variables.$s2bs5-font-weight;
+                line-height: variables.$s2bs5-line-height;
+                color: variables.$s2bs5-color;
+                background-color: variables.$s2bs5-bg;
+                background-clip: padding-box;
+                border: var(--border-width) var(--border-style) var(--border-color);
+                appearance: none;
+
+                @include config.border-radius(variables.$s2bs5-border-radius, 0);
+                @include config.box-shadow(variables.$s2bs5-box-shadow);
+                @include config.transition(variables.$s2bs5-transition);
+
+                &:focus {
+                    border-color: config.$form-select-focus-border-color;
+                    outline: config.$focus-ring-width solid config.$focus-ring-color;
+            outline-offset: config.$focus-ring-offset;
+                }
+            }
+        }
+
+        .select2-results__options {
+            &:not(.select2-results__options--nested) {
+                max-height: variables.$s2bs5-options-max-height;
+                overflow-y: auto;
+            }
+
+            .select2-results__option {
+                padding: variables.$s2bs5-item-padding-y variables.$s2bs5-item-padding-x;
+                font-weight: variables.$s2bs5-font-weight;
+                line-height: variables.$s2bs5-line-height;
+
+                &.select2-results__message {
+                    color: variables.$s2bs5-placeholder-color;
+                }
+
+                &.select2-results__option--highlighted {
+                    background-color: color-mix(in srgb, var(--secondary) 8%, transparent);
+                    color: inherit;
+                }
+
+                &.select2-results__option--selected,
+                &[aria-selected="true"]:not(.select2-results__option--highlighted) {
+                    color: var(--primary-fg);
+                    background-color: var(--primary);
+                }
+
+                &.select2-results__option--disabled,
+                &[aria-disabled="true"] {
+                    color: variables.$s2bs5-disabled-color;
+                }
+
+                &[role="group"] {
+                    padding: 0;
+
+                    .select2-results__group {
+                        padding: variables.$s2bs5-group-padding-y variables.$s2bs5-group-padding-x;
+                        font-weight: variables.$s2bs5-group-font-weight;
+                        line-height: variables.$s2bs5-line-height;
+                        color: variables.$s2bs5-group-color;
+                    }
+
+                    .select2-results__options--nested {
+                        .select2-results__option {
+                            padding: variables.$s2bs5-item-padding-y variables.$s2bs5-item-padding-x;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

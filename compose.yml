@@ -1,0 +1,56 @@
+name: kern
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: kern-cms-php:8.4
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    ports: ["127.0.0.1:${KERN_PORT:-8000}:8000"]
+    volumes: [".:/app"]
+    environment:
+      APP_URL: "http://localhost:${KERN_PORT:-8000}"
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: "${DB_DATABASE:-kern-local-only}"
+      DB_USERNAME: "${DB_USERNAME:-kern-local-only}"
+      DB_PASSWORD: "${DB_PASSWORD:-kern-local-only}"
+      REDIS_CLIENT: predis
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: database
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks:
+      pub:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: "${DB_DATABASE:-kern-local-only}"
+      POSTGRES_USER: "${DB_USERNAME:-kern-local-only}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-kern-local-only}"
+    ports: ["127.0.0.1:55433:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      pub:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      pub:
+volumes:
+  postgres-data:
+networks:
+  pub:

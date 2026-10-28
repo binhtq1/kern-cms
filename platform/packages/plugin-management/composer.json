@@ -1,0 +1,34 @@
+{
+    "support": {
+        "email": "quocbinhkrb@gmail.com",
+        "issues": "https://github.com/binhtq1/kern-cms/issues",
+        "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/plugin-management"
+    },
+    "authors": [
+        {
+            "name": "Binh Tran",
+            "email": "quocbinhkrb@gmail.com",
+            "homepage": "https://github.com/binhtq1",
+            "role": "Maintainer"
+        }
+    ],
+    "name": "kern/plugin-management",
+    "description": "Plugin management package",
+    "type": "package",
+    "autoload": {
+        "psr-4": {
+            "Kern\\PluginManagement\\": "src"
+        }
+    },
+    "require": {
+        "kern/platform": "^1.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Kern\\PluginManagement\\Providers\\PluginManagementServiceProvider"
+            ]
+        }
+    },
+    "version": "1.0.0"
+}

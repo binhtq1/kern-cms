@@ -1,0 +1,34 @@
+{
+    "support": {
+        "email": "quocbinhkrb@gmail.com",
+        "issues": "https://github.com/binhtq1/kern-cms/issues",
+        "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/revision"
+    },
+    "authors": [
+        {
+            "name": "Binh Tran",
+            "email": "quocbinhkrb@gmail.com",
+            "homepage": "https://github.com/binhtq1",
+            "role": "Maintainer"
+        }
+    ],
+    "name": "kern/revision",
+    "description": "Revision package",
+    "type": "package",
+    "autoload": {
+        "psr-4": {
+            "Kern\\Revision\\": "src"
+        }
+    },
+    "require": {
+        "kern/platform": "^1.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Kern\\Revision\\Providers\\RevisionServiceProvider"
+            ]
+        }
+    },
+    "version": "1.0.0"
+}

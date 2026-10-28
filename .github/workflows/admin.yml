@@ -1,0 +1,153 @@
+name: Admin and public regression
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: PHP 8.4 / ${{ matrix.database }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: kern_cms_test
+          POSTGRES_USER: kern_test
+          POSTGRES_PASSWORD: kern_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kern_test -d kern_cms_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: true
+      APP_URL: http://localhost
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'pgsql' && 'kern_cms_test' || ':memory:' }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_USERNAME: kern_test
+      DB_PASSWORD: kern_test
+      DB_URL: ""
+      CACHE_STORE: ${{ matrix.database == 'pgsql' && 'redis' || 'array' }}
+      REDIS_CLIENT: predis
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_DB: 14
+      REDIS_CACHE_DB: 15
+      CACHE_PREFIX: kern_ci_${{ github.run_id }}_${{ matrix.database }}_
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      BCRYPT_ROUNDS: 4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: "8.4"
+          extensions: pdo_sqlite, pdo_pgsql, mbstring, dom, fileinfo, intl, zip, gd, exif, bcmath
+          coverage: none
+          tools: composer:v2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install locked dependencies
+        run: |
+          cp .env.example .env
+          composer install --prefer-dist --no-interaction --no-progress
+          npm ci --no-audit
+          php artisan key:generate --no-interaction
+          php artisan config:clear --no-interaction
+      - name: Check changed PHP formatting
+        if: matrix.database == 'sqlite'
+        env:
+          BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
+        run: |
+          if [[ -n "$BASE_REVISION" && "$BASE_REVISION" != 0000000000000000000000000000000000000000 ]] && git cat-file -e "$BASE_REVISION^{commit}" 2>/dev/null; then
+            mapfile -d '' php_files < <(git diff --name-only --diff-filter=ACMR -z "$BASE_REVISION" HEAD -- '*.php')
+          else
+            mapfile -d '' php_files < <(git diff-tree --root --no-commit-id --name-only --diff-filter=ACMR -r -z HEAD -- '*.php')
+          fi
+          if ((${#php_files[@]})); then
+            vendor/bin/pint --format agent "${php_files[@]}"
+            git diff --exit-code -- "${php_files[@]}"
+          fi
+      - name: Check React types, formatting and unit tests
+        if: matrix.database == 'sqlite'
+        run: |
+          npm run typecheck:admin
+          npm run lint:admin
+          npm run test:admin
+      - name: Build React admin
+        run: |
+          npm run build:admin
+          test -s public/build/admin/manifest.json
+          test -s public/build/admin/admin-registry.json
+      - name: Build Vite themes
+        run: npm run build:themes
+      - name: Test theme builds
+        if: matrix.database == 'sqlite'
+        run: |
+          npm run test:themes
+          node --test tests/ReleasePackage.test.mjs
+      - name: Build public site assets
+        if: matrix.database == 'sqlite'
+        run: |
+          npm run build:public
+          npm run test:assets
+      - name: Run feature and unit regression tests
+        run: php artisan test --compact
+      - name: Verify Laravel caches
+        run: |
+          php artisan config:cache --no-interaction
+          php artisan route:cache --no-interaction
+          php artisan view:cache --no-interaction
+          php artisan config:clear --no-interaction
+          php artisan route:clear --no-interaction
+          php artisan view:clear --no-interaction
+      - name: Audit production dependencies
+        if: matrix.database == 'sqlite'
+        run: |
+          composer audit --locked --no-dev
+          npm audit --omit=dev --audit-level=high
+      - name: Report complete JavaScript dependency audit
+        if: always() && matrix.database == 'sqlite'
+        continue-on-error: true
+        run: npm audit --json > npm-audit.json
+      - name: Upload verification diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: admin-verification-${{ matrix.database }}
+          path: |
+            npm-audit.json
+            public/build/admin/manifest.json
+            public/build/admin/admin-registry.json
+            storage/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,5 @@
+<article>
+    <h1>{{ $post->name }}</h1>
+    {!! BaseHelper::clean($post->content) !!}
+</article>
+{!! apply_filters(BASE_FILTER_PUBLIC_COMMENT_AREA, null, $post) !!}

@@ -1,0 +1,46 @@
+{
+    "support": {
+        "email": "quocbinhkrb@gmail.com",
+        "issues": "https://github.com/binhtq1/kern-cms/issues",
+        "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/packages/theme"
+    },
+    "authors": [
+        {
+            "name": "Binh Tran",
+            "email": "quocbinhkrb@gmail.com",
+            "homepage": "https://github.com/binhtq1",
+            "role": "Maintainer"
+        }
+    ],
+    "name": "kern/theme",
+    "description": "Theme package",
+    "type": "package",
+    "autoload": {
+        "psr-4": {
+            "Kern\\Theme\\": "src"
+        }
+    },
+    "require": {
+        "kern/platform": "^1.0",
+        "kern/sitemap": "^1.0",
+        "kern/widget": "^1.0",
+        "kern/slug": "^1.0",
+        "kern/seo-helper": "^1.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Kern\\Theme\\Providers\\ThemeServiceProvider",
+                "Kern\\Theme\\Providers\\RouteServiceProvider"
+            ],
+            "aliases": {
+                "Theme": "Kern\\Theme\\Facades\\Theme",
+                "ThemeOption": "Kern\\Theme\\Facades\\ThemeOption",
+                "ThemeManager": "Kern\\Theme\\Facades\\Manager",
+                "AdminBar": "Kern\\Theme\\Facades\\AdminBar",
+                "SiteMapManager": "Kern\\Theme\\Facades\\SiteMapManager"
+            }
+        }
+    },
+    "version": "1.0.0"
+}
