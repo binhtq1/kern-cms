@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html {!! Theme::htmlAttributes() !!}>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {!! Theme::header() !!}
+</head>
+<body {!! Theme::bodyAttributes() !!}>
+{!! apply_filters(THEME_FRONT_BODY, null) !!}
+<header class="site-header container">
+    <a href="{{ url('/') }}">{{ theme_option('site_title') ?: config('app.name') }}</a>
+</header>

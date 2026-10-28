@@ -1,0 +1,1 @@
+function a(){let n=null;function r(){n?.abort(),n=null}return{cancel:r,async run(l,e){r();const t=new AbortController;n=t;try{const o=await l(t.signal);n===t&&!t.signal.aborted&&e.onSuccess(o)}catch(o){n===t&&!t.signal.aborted&&e.onError(o)}finally{n===t&&(n=null,e.onSettled())}}}}export{a as c};

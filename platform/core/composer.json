@@ -1,0 +1,102 @@
+{
+    "support": {
+        "email": "quocbinhkrb@gmail.com",
+        "issues": "https://github.com/binhtq1/kern-cms/issues",
+        "source": "https://github.com/binhtq1/kern-cms/tree/main/platform/core"
+    },
+    "name": "kern/platform",
+    "description": "The Kern Platform based on Laravel Framework.",
+    "keywords": [
+        "kern",
+        "kern cms",
+        "kern platform"
+    ],
+    "authors": [
+        {
+            "name": "Binh Tran",
+            "email": "quocbinhkrb@gmail.com",
+            "homepage": "https://github.com/binhtq1",
+            "role": "Maintainer"
+        }
+    ],
+    "type": "project",
+    "require": {
+        "ext-zip": "*",
+        "ext-gd": "*",
+        "barryvdh/laravel-dompdf": "^3.0",
+        "kern/assets": "^1.0",
+        "kern/form-builder": "^1.0",
+        "intervention/image": "^3.4",
+        "maennchen/zipstream-php": "3.1.*",
+        "yajra/laravel-datatables-buttons": "^13.0",
+        "yajra/laravel-datatables-oracle": "^13.0",
+        "mews/purifier": "^3.3",
+        "maatwebsite/excel": "^3.1",
+        "symfony/http-client": "^7.4 || ^8.0",
+        "symfony/postmark-mailer": "^7.4 || ^8.0",
+        "symfony/mailgun-mailer": "^7.4 || ^8.0",
+        "twig/twig": "^3.14",
+        "league/flysystem-aws-s3-v3": "^3.0",
+        "php": "^8.4",
+        "laravel/framework": "^13.0",
+        "laravel/sanctum": "^4.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Kern\\Support\\": "support/src",
+            "Kern\\ACL\\": "acl/src",
+            "Kern\\Base\\": "base/src",
+            "Kern\\Base\\Tests\\": "base/tests",
+            "Kern\\Dashboard\\": "dashboard/src",
+            "Kern\\Media\\": "media/src",
+            "Kern\\Setting\\": "setting/src",
+            "Kern\\Table\\": "table/src",
+            "Kern\\JsValidation\\": "js-validation/src",
+            "Kern\\Chart\\": "chart/src",
+            "Kern\\Icon\\": "icon/src"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Kern\\Base\\Providers\\BaseServiceProvider",
+                "Kern\\Base\\Providers\\CommandServiceProvider",
+                "Kern\\Base\\Providers\\EventServiceProvider",
+                "Kern\\Base\\Providers\\ComposerServiceProvider",
+                "Kern\\Base\\Providers\\MailConfigServiceProvider",
+                "Kern\\Base\\Providers\\FormServiceProvider",
+                "Kern\\Support\\Providers\\SupportServiceProvider",
+                "Kern\\Table\\Providers\\TableServiceProvider",
+                "Kern\\ACL\\Providers\\AclServiceProvider",
+                "Kern\\Dashboard\\Providers\\DashboardServiceProvider",
+                "Kern\\Media\\Providers\\MediaServiceProvider",
+                "Kern\\JsValidation\\Providers\\JsValidationServiceProvider",
+                "Kern\\Chart\\Providers\\ChartServiceProvider",
+                "Kern\\Icon\\Providers\\IconServiceProvider"
+            ],
+            "aliases": {
+                "Action": "Kern\\Base\\Facades\\Action",
+                "AdminAppearance": "Kern\\Base\\Facades\\AdminAppearance",
+                "AdminHelper": "Kern\\Base\\Facades\\AdminHelper",
+                "Assets": "Kern\\Base\\Facades\\Assets",
+                "BaseHelper": "Kern\\Base\\Facades\\BaseHelper",
+                "DashboardMenu": "Kern\\Base\\Facades\\DashboardMenu",
+                "CoreIcon": "Kern\\Icon\\Facades\\Icon",
+                "EmailHandler": "Kern\\Base\\Facades\\EmailHandler",
+                "Filter": "Kern\\Base\\Facades\\Filter",
+                "Form": "Kern\\Base\\Facades\\Form",
+                "Html": "Kern\\Base\\Facades\\Html",
+                "JsValidator": "Kern\\JsValidation\\Facades\\JsValidator",
+                "MacroableModels": "Kern\\Base\\Facades\\MacroableModels",
+                "MetaBox": "Kern\\Base\\Facades\\MetaBox",
+                "PageTitle": "Kern\\Base\\Facades\\PageTitle",
+                "PanelSectionManager": "Kern\\Base\\Facades\\PanelSectionManager",
+                "RvMedia": "Kern\\Media\\Facades\\RvMedia",
+                "Setting": "Kern\\Setting\\Facades\\Setting"
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "version": "1.0.0"
+}

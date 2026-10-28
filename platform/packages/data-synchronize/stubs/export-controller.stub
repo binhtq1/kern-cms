@@ -1,0 +1,15 @@
+<?php
+
+namespace {{ namespace }};
+
+use Kern\DataSynchronize\Exporter\Exporter;
+use Kern\DataSynchronize\Http\Controllers\ExportController;
+use {{ exporterNamespace }};
+
+class {{ class }} extends ExportController
+{
+    protected function getExporter(): Exporter
+    {
+        return {{ exporter }}::make();
+    }
+}

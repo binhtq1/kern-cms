@@ -1,0 +1,87 @@
+@use "@tabler/core/scss/config";
+@use "variables";
+
+.select2-container--default {
+    display: block;
+
+    @at-root select + & {
+        box-shadow: config.$input-box-shadow;
+        z-index: 1;
+    }
+
+    *:focus {
+        outline: 0;
+    }
+
+    .select2-selection {
+        width: 100%;
+        min-height: variables.$s2bs5-height;
+        padding: calc((0.5625rem - 1px) - 0px) calc(0.75rem - 5px) calc(((0.5625rem - 1px) - 3px) - 0px) calc(.75rem - 5px);
+        font-family: variables.$s2bs5-font-family;
+        font-weight: variables.$s2bs5-font-weight;
+        line-height: variables.$s2bs5-line-height;
+        color: variables.$s2bs5-color;
+        background-color: var(--bg-forms);
+        border: var(--border-width) var(--border-style) var(--border-color);
+        box-shadow: var(--input-box-shadow);
+        @include config.transition(variables.$s2bs5-transition);
+        appearance: none;
+    }
+
+    &.select2-container--focus,
+    &.select2-container--open {
+        .select2-selection {
+            border-color: config.$form-select-focus-border-color;
+            outline: config.$focus-ring-width solid config.$focus-ring-color;
+            outline-offset: config.$focus-ring-offset;
+        }
+    }
+
+    &.select2-container--open.select2-container--below .select2-selection {
+        border-bottom: 0 solid transparent;
+        @include config.border-bottom-radius(0);
+    }
+
+    &.select2-container--open.select2-container--above .select2-selection {
+        border-top: 0 solid transparent;
+        @include config.border-top-radius(0);
+    }
+
+    .select2-search {
+        width: 100%;
+    }
+
+    .select2-search--inline {
+        float: unset;
+
+        .select2-search__field {
+            vertical-align: top;
+        }
+    }
+
+    .select2-selection--single,
+    .select2-selection--multiple {
+        .select2-selection__clear {
+            position: absolute;
+            top: 50%;
+            right: variables.$s2bs5-indicator-padding;
+            width: variables.$s2bs5-clear-width;
+            height: variables.$s2bs5-clear-height;
+            padding: variables.$s2bs5-clear-padding-y variables.$s2bs5-clear-padding-x;
+            overflow: hidden;
+            text-indent: 100%;
+            white-space: nowrap;
+            background: variables.$s2bs5-clear-bg;
+            transform: translateY(-50%);
+            margin: 0;
+
+            &:hover {
+                background: variables.$s2bs5-clear-hover-bg;
+            }
+
+            >span {
+                display: none;
+            }
+        }
+    }
+}

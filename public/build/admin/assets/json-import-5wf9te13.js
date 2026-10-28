@@ -1,0 +1,1 @@
+function t(e,n,o){if(new TextEncoder().encode(e).byteLength>n)throw new Error("File is too large");const r=JSON.parse(e);if(!Array.isArray(r)||r.length===0||r.length>o)throw new Error("Invalid JSON data");return r}export{t as p};

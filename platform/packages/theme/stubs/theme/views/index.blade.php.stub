@@ -1,0 +1,2 @@
+<h1>{{ __('Welcome') }}</h1>
+<p>{{ __('Set a homepage in Appearance → Theme options to show your content here.') }}</p>
