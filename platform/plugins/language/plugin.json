@@ -1,0 +1,11 @@
+{
+    "id": "kern/language",
+    "name": "Language",
+    "namespace": "Kern\\Language\\",
+    "provider": "Kern\\Language\\Providers\\LanguageServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/language",
+    "version": "2.2.6",
+    "description": "Multi-language features.",
+    "minimum_core_version": "1.0.0"
+}

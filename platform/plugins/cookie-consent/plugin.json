@@ -1,0 +1,11 @@
+{
+    "id": "kern/cookie-consent",
+    "name": "Cookie Consent",
+    "namespace": "Kern\\CookieConsent\\",
+    "provider": "Kern\\CookieConsent\\Providers\\CookieConsentServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/cookie-consent",
+    "version": "2.0.7",
+    "description": "Cookie Consent",
+    "minimum_core_version": "1.0.0"
+}
