@@ -32,13 +32,6 @@ return [
         'beforeRenderTheme' => function (Theme $theme): void {
             // You may use this event to set up your assets.
 
-            $version = get_cms_version();
-
-            $theme->asset()->container('footer')->usePath()->add('jquery', 'plugins/jquery/jquery-3.7.1.min.js');
-
-            $theme->asset()->container('footer')->usePath()
-                ->add('custom', 'js/custom.min.js', ['jquery'], [], $version);
-
             if (BaseHelper::isRtlEnabled()) {
                 $theme->asset()->usePath()->add('bootstrap-css', 'plugins/bootstrap/css/bootstrap.rtl.min.css');
             } else {

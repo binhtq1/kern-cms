@@ -331,7 +331,7 @@ abstract class FormAbstract extends Form implements ExtensibleContract
 
     public function renderForm(array $options = [], bool $showStart = true, bool $showFields = true, bool $showEnd = true): string
     {
-        Assets::addScripts(['form-validation', 'are-you-sure']);
+        Assets::addScripts('form-validation');
 
         $class = $this->getFormOption('class');
         $this->setFormOption('class', $class.' dirty-check');

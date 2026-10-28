@@ -20,6 +20,9 @@
     },
     "include": [
         "resources/js/admin.tsx",
+        "resources/js/member.tsx",
+        "platform/plugins/member/resources/js/account/**/*.ts",
+        "platform/plugins/member/resources/js/account/**/*.tsx",
         "platform/**/resources/js/admin/**/*.ts",
         "platform/**/resources/js/admin/**/*.tsx",
         "vite.config.ts"

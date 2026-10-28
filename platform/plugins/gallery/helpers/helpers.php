@@ -77,28 +77,8 @@ if (! function_exists('render_object_gallery')) {
         Theme::asset()
             ->container('footer')
             ->usePath(false)
-            ->add(
-                'owl.carousel',
-                asset('vendor/core/plugins/gallery/libraries/owl-carousel/owl.carousel.css'),
-                [],
-                [],
-                '1.0.0'
-            )
             ->add('object-gallery-css', asset('vendor/core/plugins/gallery/css/object-gallery.css'), [], [], '1.0.0')
-            ->add(
-                'carousel',
-                asset('vendor/core/plugins/gallery/libraries/owl-carousel/owl.carousel.js'),
-                ['jquery'],
-                [],
-                '1.0.0'
-            )
-            ->add(
-                'object-gallery-js',
-                asset('vendor/core/plugins/gallery/js/object-gallery.js'),
-                ['jquery'],
-                [],
-                '1.0.0'
-            );
+            ->add('object-gallery-js', asset('vendor/core/plugins/gallery/js/object-gallery.js'), [], [], '1.0.0');
 
         return view('plugins/gallery::partials.object-gallery', compact('galleries', 'category'))->render();
     }

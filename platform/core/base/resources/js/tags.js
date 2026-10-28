@@ -1,117 +1,47 @@
-class TagsManager {
-    init() {
-
-        $(document)
-            .find('.tags')
-            .each(function (index, element) {
-                if ($(element).hasClass('tagify')) {
-                    return
-                }
-
-                let tagify = new Tagify(element, {
-                    keepInvalidTags:
-                        $(element).data('keep-invalid-tags') !== undefined
-                            ? $(element).data('keep-invalid-tags')
-                            : true,
-                    enforceWhitelist:
-                        $(element).data('enforce-whitelist') !== undefined
-                            ? $(element).data('enforce-whitelist')
-                            : false,
-                    delimiters: $(element).data('delimiters') !== undefined ? $(element).data('delimiters') : ',',
-                    whitelist: element.value ? element.value.trim().split(/\s*,\s*/) : [],
-                    userInput: $(element).data('user-input') !== undefined ? $(element).data('user-input') : true,
-                })
-
-                if ($(element).data('url')) {
-                    tagify.on('input', (e) => {
-                        tagify.settings.whitelist.length = 0 // reset current whitelist
-                        tagify.loading(true).dropdown.hide.call(tagify) // show the loader animation
-
-                        $httpClient
-                            .make()
-                            .get($(element).data('url'))
-                            .then(({data}) => {
-                                tagify.settings.whitelist = data
-                                tagify.loading(false).dropdown.show.call(tagify, e.detail.value)
-                            })
-                    })
-                }
-            })
-
-        document.querySelectorAll('.list-tagify').forEach((element) => {
-            if (! element.dataset.list || $(element).hasClass('tagify')) {
-                return
-            }
-
-            const list = JSON.parse(element.dataset.list)
-
-            let whiteList = []
-
-            for (const [key, value] of Object.entries(list)) {
-                whiteList.push({value: key, name: value})
-            }
-
-            let listChosen = String(element.value).split(',')
-
-            let arrayChosen = whiteList.filter((obj) => {
-                if (listChosen.includes(String(obj.value))) {
-                    return {value: obj.id, name: obj.name}
-                }
-            })
-
-            const tagTemplate = function (tagData) {
-                return `
-                <tag title="${tagData.title || tagData.name}"
-                        contenteditable='false'
-                        spellcheck='false'
-                        tabIndex="-1"
-                        class="${this.settings.classNames.tag} ${tagData.class ? tagData.class : ''}"
-                        ${this.getAttributes(tagData)}>
-                    <x title='' class='tagify__tag__removeBtn' role='button' aria-label='remove tag'></x>
-                    <div class="d-flex align-items-center">
-                        <span class='tagify__tag-text'>${tagData.name}</span>
-                    </div>
-                </tag>
-            `
-            }
-
-            const suggestionTemplate = function (tagData) {
-                return `
-                <div ${this.getAttributes(tagData)}
-                    class="tagify__dropdown__item d-flex align-items-center ${tagData.class ? tagData.class : ''}"
-                    tabindex="0"
-                    role="option">
-
-                    <div class="d-flex flex-column">
-                        <strong>${tagData.name}</strong>
-                    </div>
-                </div>
-            `
-            }
-
-            let tagify = new Tagify(element, {
-                tagTextProp: 'name',
-                enforceWhitelist: true,
-                skipInvalid: true, // do not temporarily add invalid tags
-                dropdown: {
-                    closeOnSelect: false,
-                    enabled: 0,
-                    classname: 'users-list',
-                    searchKeys: ['value', 'name'],
-                },
-                templates: {
-                    tag: tagTemplate,
-                    dropdownItem: suggestionTemplate,
-                },
-                whitelist: whiteList,
-                originalInputValueFormat: (valuesArr) => valuesArr.map((item) => item.value).join(','),
-            })
-
-            tagify.loadOriginalValues(arrayChosen)
+const initialized = new WeakSet()
+const readBoolean = (element, name, fallback) => element.dataset[name] === undefined ? fallback : element.dataset[name] !== 'false'
+function initialize() {
+    if (!window.Tagify) return
+    document.querySelectorAll('.tags, .list-tagify').forEach((element) => {
+        if (initialized.has(element) || element.classList.contains('tagify')) return
+        initialized.add(element)
+        const listed = element.classList.contains('list-tagify')
+        let whitelist = element.value ? element.value.trim().split(/\s*,\s*/) : []
+        if (listed) {
+            try { whitelist = Object.entries(JSON.parse(element.dataset.list || '{}')).map(([value, name]) => ({ value, name })) }
+            catch { initialized.delete(element); return }
+        }
+        const tagify = new Tagify(element, {
+            keepInvalidTags: readBoolean(element, 'keepInvalidTags', true),
+            enforceWhitelist: listed || readBoolean(element, 'enforceWhitelist', false),
+            delimiters: element.dataset.delimiters || ',',
+            userInput: readBoolean(element, 'userInput', true),
+            whitelist,
+            ...(listed ? {
+                tagTextProp: 'name', skipInvalid: true,
+                dropdown: { closeOnSelect: false, enabled: 0, searchKeys: ['value', 'name'] },
+                originalInputValueFormat: (values) => values.map((item) => item.value).join(','),
+            } : {}),
         })
-    }
+        if (listed) tagify.loadOriginalValues(whitelist.filter((item) => element.value.split(',').includes(String(item.value))))
+        let controller
+        if (element.dataset.url) tagify.on('input', async (event) => {
+            controller?.abort()
+            controller = new AbortController()
+            const request = controller
+            tagify.loading(true)
+            try {
+                const response = await fetch(element.dataset.url, { signal: request.signal, headers: { Accept: 'application/json' } })
+                if (!response.ok) throw new Error(response.statusText)
+                const data = await response.json()
+                if (request.signal.aborted) return
+                tagify.settings.whitelist = Array.isArray(data) ? data : data.data || []
+                tagify.dropdown.show(event.detail.value)
+            } catch (error) { if (error.name !== 'AbortError') window.Kern?.showError(error.message) }
+            finally { if (controller === request) tagify.loading(false) }
+        })
+    })
 }
-
-$(() => {
-    new TagsManager().init()
-})
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true })
+else initialize()
+document.addEventListener('core-init-resources', initialize)

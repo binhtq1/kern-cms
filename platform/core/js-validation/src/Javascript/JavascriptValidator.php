@@ -37,7 +37,7 @@ class JavascriptValidator implements Arrayable
     protected $remote;
 
     /**
-     * 'ignore' option for jQuery Validation Plugin.
+     * 'ignore' option for native browser validation.
      *
      * @var string
      */

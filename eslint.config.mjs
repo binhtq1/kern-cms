@@ -5,6 +5,8 @@ export default [
     {
         files: [
             "resources/js/admin.tsx",
+            "resources/js/member.tsx",
+            "platform/plugins/member/resources/js/account/**/*.{ts,tsx}",
             "platform/**/resources/js/admin/**/*.{ts,tsx}",
         ],
         languageOptions: {

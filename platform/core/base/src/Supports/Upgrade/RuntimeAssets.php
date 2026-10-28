@@ -30,6 +30,8 @@ class RuntimeAssets
 
     public function plan(): array
     {
+        app(NativeFrontendCompatibility::class)->assertSupported();
+
         $registry = storage_path('app/kern/runtime-assets.json');
         $legacy = json_decode($this->files->get(core_path('base/resources/upgrade/0.1.0.json')), true, flags: JSON_THROW_ON_ERROR)['assets'];
         $previous = is_file($registry) ? json_decode($this->files->get($registry), true, flags: JSON_THROW_ON_ERROR) : $legacy;

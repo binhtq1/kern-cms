@@ -175,7 +175,7 @@
 @push('footer')
     @include('core/table::modal')
 
-    {!! $dataTable->scripts() !!}
+    <script type="application/json" data-kern-table="{{ $id }}">{!! json_encode($table->nativeOptions(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR) !!}</script>
 
     {!! apply_filters(BASE_FILTER_TABLE_FOOTER_RENDER, null, $table) !!}
 @endpush

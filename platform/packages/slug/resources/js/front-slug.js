@@ -1,112 +1,68 @@
-class PermalinkField {
-    constructor() {
-        let $slugBox = $(document).find('.slug-field-wrapper')
-
-        $(document).on('blur', `.js-base-form input[name=${$slugBox.data('field-name')}]`, (e) => {
-            $slugBox = $(document).find('.slug-field-wrapper')
-
-            if ($slugBox.find('input[name="slug"]').is('[readonly]')) {
-                return
-            }
-
-            const value = $(e.currentTarget).val()
-
-            if (value !== null && value !== '' && !$slugBox.find('input[name="slug"]').val()) {
-                createSlug(value, 0)
-            }
+const pending = new WeakMap()
+const timers = new WeakMap()
+async function createSlug(box, value) {
+    const form = box.closest('form')
+    const metadata = box.querySelector('.slug-data')
+    const input = box.querySelector('input[name="slug"]')
+    if (!form || !metadata?.dataset.url || !input || input.readOnly || !value.trim()) return
+    pending.get(box)?.abort()
+    const controller = new AbortController()
+    pending.set(box, controller)
+    box.setAttribute('aria-busy', 'true')
+    const body = new URLSearchParams({
+        value,
+        slug_id: metadata.dataset.id || '0',
+        model: form.querySelector('input[name="model"]')?.value || '',
+        _token: form.querySelector('input[name="_token"]')?.value || document.querySelector('meta[name="csrf-token"]')?.content || '',
+    })
+    try {
+        const response = await fetch(metadata.dataset.url, {
+            method: 'POST', body, signal: controller.signal, credentials: 'same-origin',
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         })
-
-        let timeoutId
-
-        $(document).on('keyup', 'input[name="slug"]', (event) => {
-            clearTimeout(timeoutId)
-
-            timeoutId = setTimeout(() => {
-                const input = $(event.currentTarget)
-
-                $slugBox = $(document).find('.slug-field-wrapper')
-
-                if ($slugBox.has('.slug-data').length === 0) {
-                    return
-                }
-
-                const value = input.val()
-
-                if (value !== null && value !== '') {
-                    createSlug(value, $slugBox.find('.slug-data').data('id') || 0)
-                } else {
-                    input.addClass('is-invalid')
-                }
-            }, 700)
-        })
-
-        $(document).on('click', '[data-bb-toggle="generate-slug"]', (e) => {
-            e.preventDefault()
-
-            const $fromField = $(e.currentTarget)
-                .closest('.js-base-form')
-                .find(`input[name=${$slugBox.data('field-name')}]`)
-
-            if ($fromField.val() !== null && $fromField.val() !== '') {
-                createSlug($fromField.val(), $slugBox.find('.slug-data').data('id') || 0)
-            }
-        })
-
-        const toggleInputSlugState = (isShow = false) => {
-            const $icon = $slugBox.find('.slug-actions a')
-            const $spinner = $('<div class="spinner-border spinner-border-sm" role="status"></div>')
-
-            if (isShow) {
-                $icon.removeClass('d-none')
-                $slugBox.find('.spinner-border').remove()
-            } else {
-                $icon.addClass('d-none')
-                $icon.after($spinner)
-            }
+        const result = await response.json()
+        if (!response.ok || result?.error) throw new Error(result?.message || response.statusText)
+        if (controller.signal.aborted) return
+        const slug = typeof result === 'string' ? result : result.data?.slug || result.data || result.slug
+        if (typeof slug !== 'string') throw new Error('Invalid slug response')
+        input.value = slug
+        input.classList.remove('is-invalid')
+        input.dispatchEvent(new Event('change', { bubbles: true }))
+        const current = box.querySelector('.slug-current')
+        if (current) current.value = slug
+        form.querySelectorAll('.page-url-seo p').forEach((element) => { element.textContent = (metadata.dataset.view || '') + slug.replace(/^\//, '') })
+    } catch (error) {
+        if (error.name !== 'AbortError') {
+            input.classList.add('is-invalid')
+            window.Kern?.showError(error.message)
         }
-
-        /**
-         * @param {string} value
-         * @param {number} id
-         */
-        const createSlug = (value, id) => {
-            $slugBox = $(document).find('.slug-field-wrapper')
-
-            const form = $slugBox.closest('form')
-            const $slugId = $slugBox.find('.slug-data')
-
-            if (! $slugBox.length || ! $slugId.length || ! form.length) {
-                return
-            }
-
-            toggleInputSlugState()
-
-            $.ajax({
-                type: 'POST',
-                url: $slugId.data('url'),
-                data: {
-                    value: value,
-                    slug_id: id.toString(),
-                    model: form.find('input[name="model"]').val(),
-                    _token: form.find('input[name="_token"]').val(),
-                },
-                success: function(data) {
-                    toggleInputSlugState(true);
-
-                    const url = `${$slugId.data('view')}${data.toString().replace('/', '')}`;
-
-                    $slugBox.find('input[name="slug"]').val(data);
-                    form.find('.page-url-seo p').text(url);
-                    $slugBox.find('.slug-current').val(data);
-                },
-                error: function(xhr, status, error) {
-                    console.error('Error:', error);
-                }
-            });
-        }
+    } finally {
+        if (pending.get(box) === controller) { pending.delete(box); box.removeAttribute('aria-busy') }
     }
 }
-
-$(() => {
-    new PermalinkField()
+document.addEventListener('focusout', (event) => {
+    const form = event.target.closest('.js-base-form')
+    if (!form) return
+    form.querySelectorAll('.slug-field-wrapper').forEach((box) => {
+        const input = box.querySelector('input[name="slug"]')
+        if (box.dataset.fieldName === event.target.name && !input?.value) createSlug(box, event.target.value)
+    })
+})
+document.addEventListener('input', (event) => {
+    if (!event.target.matches('input[name="slug"]')) return
+    const box = event.target.closest('.slug-field-wrapper')
+    if (!box) return
+    clearTimeout(timers.get(box))
+    if (!event.target.value.trim()) { pending.get(box)?.abort(); event.target.classList.add('is-invalid'); return }
+    timers.set(box, setTimeout(() => createSlug(box, event.target.value), 700))
+})
+document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-bb-toggle="generate-slug"]')
+    if (!button) return
+    event.preventDefault()
+    const form = button.closest('form')
+    const box = button.closest('.slug-field-wrapper') || form?.querySelector('.slug-field-wrapper')
+    if (!form || !box) return
+    const source = Array.from(form.elements).find((element) => element.name === box.dataset.fieldName)
+    if (source) createSlug(box, source.value)
 })

@@ -91,7 +91,9 @@ class PluginThemeTest extends TestCase
         $response = $this->get('/')->assertOk();
         $response->assertSee('themes/ripple/build/'.$manifest['platform/themes/ripple/assets/sass/style.scss']['file'], false)
             ->assertSee('themes/ripple/build/'.$manifest['platform/themes/ripple/assets/js/ripple.js']['file'], false)
-            ->assertSee('plugins/jquery/jquery-3.7.1.min.js', false);
+            ->assertDontSee('jquery', false);
+        $this->assertFileDoesNotExist(public_path('themes/ripple/plugins/jquery/jquery-3.7.1.min.js'));
+        $this->assertFileDoesNotExist(public_path('themes/ripple/js/custom.min.js'));
         $this->get('/missing-kern-page')->assertNotFound();
     }
 

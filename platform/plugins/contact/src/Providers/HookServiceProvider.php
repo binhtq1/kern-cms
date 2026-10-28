@@ -131,7 +131,7 @@ class HookServiceProvider extends ServiceProvider
                     ->add(
                         'contact-public-js',
                         asset('vendor/core/plugins/contact/js/contact-public.js'),
-                        ['jquery'],
+                        [],
                         [],
                         '1.0.0'
                     );

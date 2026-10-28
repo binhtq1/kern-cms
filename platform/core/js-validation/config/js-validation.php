@@ -8,7 +8,7 @@ return [
     'view' => 'core/js-validation::bootstrap',
 
     /*
-     * Default JQuery selector find the form to be validated.
+     * Default CSS selector find the form to be validated.
      * By default, the validations are applied to all forms.
      */
     'form_selector' => 'form',
@@ -21,7 +21,7 @@ return [
 
     /*
      * Duration time for the animation when We are moving the focus
-     * to the first error, http://api.jquery.com/animate/ for more information.
+     * to the first error, https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollIntoView for more information.
      */
     'duration_animate' => 1000,
 
@@ -45,7 +45,7 @@ return [
     /*
      * Set a default value for the validation ignore property.
      *
-     * See https://jqueryvalidation.org/validate/#ignore
+     * See CSS selectors can be used to ignore fields.
      */
     'ignore' => '',
 ];

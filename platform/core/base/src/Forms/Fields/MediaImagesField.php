@@ -9,7 +9,7 @@ class MediaImagesField extends FormField
 {
     protected function getTemplate(): string
     {
-        Assets::addScripts(['jquery-ui']);
+        Assets::addScripts('sortable');
 
         return 'core/base::forms.fields.media-images';
     }

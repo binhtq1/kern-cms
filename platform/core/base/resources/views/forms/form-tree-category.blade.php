@@ -12,7 +12,7 @@
         $deleteRoute = $form->getFormOption('deleteRoute');
         $updateTreeRoute = $form->getFormOption('updateTreeRoute');
 
-        Assets::addStyles('jquery-nestable')->addScripts('jquery-nestable');
+        Assets::addScripts('sortable');
     @endphp
 
     <div class="row row-cards">

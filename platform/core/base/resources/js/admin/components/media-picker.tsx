@@ -14,6 +14,7 @@ import { createUploadSession } from "@admin/lib/upload-session";
 import { cn } from "@admin/lib/utils";
 import { usePage } from "@inertiajs/react";
 import type { SharedProps } from "@admin/types";
+import { mediaPreviewSource } from "./image-source";
 type MediaFile = {
     id: string;
     name: string;
@@ -50,7 +51,9 @@ export function MediaPicker({
     disabled?: boolean;
 }) {
     const t = useAdminTranslation();
-    const { admin } = usePage<SharedProps>().props;
+    const { admin, memberMediaUrlPattern } = usePage<
+        SharedProps & { memberMediaUrlPattern?: string }
+    >().props;
     const listUrl =
         !disabled && admin.capabilities?.browseMedia
             ? requestedListUrl
@@ -71,9 +74,7 @@ export function MediaPicker({
     } | null>(null);
     const [imageFailed, setImageFailed] = useState(false);
     const [resolvedValue, setResolvedValue] = useState("");
-    const directSource = /^(https?:\/\/|\/|blob:|data:image\/)/i.test(value)
-        ? value
-        : undefined;
+    const directSource = mediaPreviewSource(value, memberMediaUrlPattern);
     const previewSource = preview?.value === value ? preview.src : directSource;
     const previewLoading = Boolean(
         value && listUrl && !previewSource && resolvedValue !== value,

@@ -26,7 +26,7 @@ class HookServiceProvider extends ServiceProvider
         }
 
         if ($form instanceof FormFront) {
-            Theme::asset()->container('footer')->usePath(false)->add('slug-js', 'vendor/core/packages/slug/js/front-slug.js', ['jquery']);
+            Theme::asset()->container('footer')->usePath(false)->add('slug-js', 'vendor/core/packages/slug/js/front-slug.js');
             Theme::asset()->usePath(false)->add('slug-css', 'vendor/core/packages/slug/css/slug.css');
         }
 

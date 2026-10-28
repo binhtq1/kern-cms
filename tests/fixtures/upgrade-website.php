@@ -23,9 +23,28 @@ function verifyUpgrade(bool $condition, string $message): void
         throw new RuntimeException($message);
     }
 }
+function verifyLocalScripts(Client $client, string $html): void
+{
+    verifyUpgrade(! preg_match('/<script[^>]+src=[\'\"][^\'\"]*jquery/i', $html), 'The upgraded page still loads the jQuery runtime.');
+    $document = new DOMDocument;
+    @$document->loadHTML($html);
+    foreach ((new DOMXPath($document))->query('//script[@src]') as $script) {
+        $path = parse_url($script->getAttribute('src'), PHP_URL_PATH);
+        if (! is_string($path) || ! preg_match('~^/(?:vendor/core/|themes/|build/)~', $path)) {
+            continue;
+        }
+        $response = $client->get($path);
+        verifyUpgrade($response->getStatusCode() === 200, 'Upgraded script is missing: '.$path);
+        verifyUpgrade(! preg_match('/jQuery (?:JavaScript Library|v\d)|jquery\.org\/license/', (string) $response->getBody()), 'The upgraded page downloaded the jQuery library.');
+    }
+}
 $paths = ['.env', 'storage/installed', 'platform/themes/magazine/layouts/default.blade.php', 'platform/plugins/site-custom/plugin.json', 'platform/plugins/site-custom/src/Providers/SiteServiceProvider.php', 'resources/views/vendor/core/base/site-probe.blade.php', 'config/site.php', 'app/SiteCustomization.php', 'storage/app/public/customer-upload.txt', 'public/themes/magazine/site-custom.css'];
-if (($argv[1] ?? '') === 'seed') {
+$mode = $argv[1] ?? '';
+$expectedVersion = $argv[2] ?? '0.2.0';
+if ($mode === 'seed') {
     verifyUpgrade(config('database.default') === 'sqlite' && is_file(storage_path('installed')), 'Use an installed disposable SQLite website.');
+    verifyUpgrade(is_plugin_active('contact'), 'Activate the legacy contact plugin before capturing and seeding the upgrade fixture.');
+    verifyUpgrade((bool) preg_match('/\$\s*\(|jQuery\s*\(/', File::get(plugin_path('contact/resources/js/contact-public.js'))), 'The upgrade fixture must include an old frontend module that actually requires jQuery.');
     DB::table('pages')->insert(['name' => 'Customer page', 'content' => '<p>Retained content</p>', 'status' => 'published']);
     DB::table('settings')->insert(['key' => 'customer_setting', 'value' => 'preserved']);
     Schema::create('customer_records', function ($table): void {
@@ -59,13 +78,20 @@ if (($argv[1] ?? '') === 'seed') {
     verifyUpgrade(DB::table('pages')->where('name', 'Customer page')->value('content') === '<p>Retained content</p>', 'Customer page lost.');
     verifyUpgrade(DB::table('settings')->where('key', 'customer_setting')->value('value') === 'preserved', 'Setting lost.');
     verifyUpgrade(DB::table('customer_records')->value('value') === 'customer data', 'Custom table lost.');
-    verifyUpgrade(Schema::hasColumn('customer_records', 'new_optional'), 'Pending migration did not run.');
+    verifyUpgrade(Schema::hasColumn('customer_records', 'new_optional') === ($mode !== 'verify-blocked'), 'Pending migration state did not match the upgrade stage.');
     verifyUpgrade(array_intersect_key(User::query()->where('username', 'kernadmin')->firstOrFail()->getAttributes(), array_flip(['id', 'username', 'email', 'password', 'super_user', 'permissions'])) == $fixture['user'], 'Administrator changed.');
     verifyUpgrade(view('core/base::site-probe')->render() === 'customer customization', 'View override not loaded.');
     verifyUpgrade(config('site.custom') === 'preserved' && SiteCustomization::VALUE === 'preserved', 'Site PHP customization not loaded.');
     verifyUpgrade(app()->bound('site.custom.loaded') && is_plugin_active('site-custom'), 'Custom plugin not loaded.');
-    verifyUpgrade(get_cms_version() === '0.2.0' && str_contains(core_path(), '/vendor/binhtq1/kern-core/'), 'Runtime is not loaded from Composer.');
+    verifyUpgrade(get_cms_version() === $expectedVersion && str_contains(core_path(), '/vendor/binhtq1/kern-core/'), 'Runtime is not loaded from Composer.');
     verifyUpgrade(! app()->isDownForMaintenance(), 'Website is still in maintenance mode.');
+    if ($mode === 'verify-blocked') {
+        verifyUpgrade(DB::table('migrations')->count() === $fixture['migrations'], 'A blocked upgrade changed migration state.');
+        verifyUpgrade(! is_dir(storage_path('kern-upgrades')), 'A blocked upgrade created a snapshot.');
+        verifyUpgrade(! is_file(storage_path('app/kern/upgrade.json')), 'A blocked upgrade changed runtime upgrade state.');
+        echo "Legacy frontend guard retained all data and customizations before upgrade.\n";
+        exit(0);
+    }
     $socket = stream_socket_server('tcp://127.0.0.1:0');
     $address = stream_socket_get_name($socket, false);
     fclose($socket);
@@ -86,15 +112,19 @@ if (($argv[1] ?? '') === 'seed') {
         $client = new Client(['base_uri' => $origin, 'cookies' => true]);
         $homepage = $client->get('/');
         verifyUpgrade(str_contains((string) $homepage->getBody(), 'customer theme customization'), 'Customized theme did not render.');
+        verifyLocalScripts($client, (string) $homepage->getBody());
         $login = $client->get(parse_url(route('access.login'), PHP_URL_PATH));
         $document = new DOMDocument;
+        verifyLocalScripts($client, (string) $login->getBody());
         @$document->loadHTML((string) $login->getBody());
         $token = (new DOMXPath($document))->query('//meta[@name="csrf-token"]')->item(0)->getAttribute('content');
         $response = $client->post(parse_url(route('access.login.post'), PHP_URL_PATH), ['form_params' => ['_token' => $token, 'username' => 'kernadmin', 'password' => 'Upgrade-fixture-password-2026'], 'allow_redirects' => false]);
         verifyUpgrade($response->getStatusCode() === 302 && parse_url($response->getHeaderLine('Location'), PHP_URL_PATH) === parse_url(route('dashboard.index'), PHP_URL_PATH), 'Administrator login failed after upgrade.');
-        verifyUpgrade($client->get($response->getHeaderLine('Location'))->getStatusCode() === 200, 'Upgraded dashboard failed.');
+        $dashboard = $client->get($response->getHeaderLine('Location'));
+        verifyUpgrade($dashboard->getStatusCode() === 200, 'Upgraded dashboard failed.');
+        verifyLocalScripts($client, (string) $dashboard->getBody());
     } finally {
         $server->stop();
     }
-    echo "Upgrade 0.1.0 -> 0.2.0 passed: content, admin, settings, custom table, uploads, APP_KEY, theme, plugin, config and view override preserved.\n";
+    echo "Upgrade 0.1.0 -> $expectedVersion passed: content, admin, settings, custom table, uploads, APP_KEY, theme, plugin, config and view override preserved.\n";
 }

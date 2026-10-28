@@ -103,7 +103,7 @@ class LanguageServiceProvider extends ServiceProvider
                         ->add(
                             'language-public-js',
                             asset('vendor/core/plugins/language/js/language-public.js'),
-                            ['jquery'],
+                            [],
                             [],
                             '2.2.0'
                         );

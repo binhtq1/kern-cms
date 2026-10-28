@@ -357,10 +357,6 @@ class AssetContainer
             $this->usePath(false);
         }
 
-        if ($name === 'jquery') {
-            $attributes['data-pagespeed-no-defer'] = true;
-        }
-
         $this->register('script', $name, $source, $dependencies, $attributes);
 
         return $this;

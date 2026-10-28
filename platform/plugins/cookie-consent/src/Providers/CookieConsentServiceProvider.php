@@ -52,7 +52,7 @@ class CookieConsentServiceProvider extends ServiceProvider
                         ->add(
                             'cookie-consent-js',
                             asset('vendor/core/plugins/cookie-consent/js/cookie-consent.js'),
-                            ['jquery'],
+                            [],
                             [],
                             '1.0.2'
                         );

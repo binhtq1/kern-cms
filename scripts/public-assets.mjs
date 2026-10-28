@@ -29,12 +29,6 @@ const packages = [
     ['plugins/social-login', { css: ['social-login'] }],
 ]
 
-const validationFiles = [
-    'jquery-validation/jquery.validate.js', 'phpjs/strlen.js', 'phpjs/array_diff.js',
-    'phpjs/strtotime.js', 'phpjs/is_numeric.js', 'php-date-formatter/php-date-formatter.js',
-    'js-validation.js', 'helpers.js', 'timezones.js', 'validations.js',
-].map((file) => sourcePath(`core/js-validation/resources/js/${file}`))
-
 function destinations(packageName, output) {
     return [...(managedRuntime && /^(core|packages)\//.test(packageName) ? [] : [`platform/${packageName}/public/${output}`]), `public/vendor/core/${packageName}/${output}`]
 }
@@ -47,15 +41,8 @@ function writeOutput(packageName, output, contents) {
     }
 }
 
-async function compile(packageName, type, source, output, virtualSource = null) {
+async function compile(packageName, type, source, output) {
     const plugins = [vue()]
-    if (virtualSource !== null) {
-        plugins.push({
-            name: 'validation-entry',
-            resolveId(id) { return id === 'virtual:validation-entry' ? '\0virtual:validation-entry' : null },
-            load(id) { return id === '\0virtual:validation-entry' ? virtualSource : null },
-        })
-    }
 
     const result = await build({
         configFile: false,
@@ -65,16 +52,15 @@ async function compile(packageName, type, source, output, virtualSource = null) 
         plugins,
         build: {
             write: false,
-            minify: virtualSource === null ? 'esbuild' : false,
+            minify: 'esbuild',
             cssCodeSplit: false,
             lib: {
-                entry: virtualSource === null ? source : validationFiles[0],
+                entry: source,
                 name: 'KernPublicAsset',
                 formats: [type === 'css' ? 'es' : 'iife'],
                 fileName: () => 'entry.js',
             },
             rollupOptions: {
-                ...(virtualSource === null ? {} : { input: 'virtual:validation-entry' }),
                 external: ['vue'],
                 output: {
                     globals: { vue: 'Vue' },
@@ -121,9 +107,8 @@ async function buildPublicAssets() {
         console.log(`Built ${packageName}`)
     }
 
-    await compile('core/js-validation', 'js', 'validation', 'js/js-validation.js', validationFiles.map((path) => readFileSync(path, 'utf8')).join('\n;\n'))
+    await compile('core/js-validation', 'js', sourcePath('core/js-validation/resources/js/js-validation.js'), 'js/js-validation.js')
     for (const [source, destination] of [
-        ['node_modules/jquery/dist/jquery.min.js', 'libraries/jquery.min.js'],
         ['node_modules/vue/dist/vue.global.prod.js', 'libraries/vue.global.min.js'],
     ]) {
         writeOutput('core/base', destination, readFileSync(source))

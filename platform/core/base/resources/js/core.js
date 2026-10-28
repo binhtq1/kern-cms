@@ -1,2079 +1,1706 @@
-import Toastify from './base/toast'
+import Toastify from "./base/toast";
+
+const listeners = new Set();
+const initialized = new WeakMap();
+const loadingButtons = new WeakMap();
+const loadingTargets = new WeakMap();
+const selects = new WeakMap();
+const dirtyForms = new WeakMap();
+const variables = () => window.KernVariables ?? {};
+const nodes = (value, root = document) => {
+    if (!value) return [];
+    if (typeof value === "string") {
+        try {
+            return Array.from(root.querySelectorAll(value));
+        } catch {
+            return [];
+        }
+    }
+    return value.nodeType ? [value] : Array.from(value);
+};
+const parse = (value, fallback = null) => {
+    try {
+        return JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+};
+const once = (element, key, callback) => {
+    let keys = initialized.get(element);
+    if (!keys) initialized.set(element, (keys = new Set()));
+    if (keys.has(key)) return;
+    keys.add(key);
+    callback(element);
+};
+const visible = (element, show) => {
+    if (!element) return;
+    element.hidden = !show;
+    element.classList.toggle("hidden", !show);
+    element.classList.toggle("d-none", !show);
+    if (element.classList.contains("collapse"))
+        element.classList.toggle("show", show);
+    if (show && element.style.display === "none")
+        element.style.removeProperty("display");
+};
+const change = (element) =>
+    element?.dispatchEvent(new Event("change", { bubbles: true }));
+const text = (tag, content, className = "") => {
+    const element = document.createElement(tag);
+    element.textContent = content;
+    element.className = className;
+    return element;
+};
+const delegate = (type, selector, callback, key = `${type}:${selector}`) => {
+    if (listeners.has(key)) return;
+    listeners.add(key);
+    document.addEventListener(type, (event) => {
+        const target = event.target?.closest?.(selector);
+        if (!target) return;
+        Promise.resolve(callback(event, target)).catch((error) =>
+            Kern.handleError(error),
+        );
+    });
+};
+const formSnapshot = (form) =>
+    JSON.stringify(
+        Array.from(new FormData(form), ([name, value]) => [
+            name,
+            typeof value === "string"
+                ? value
+                : [value.name, value.size, value.lastModified],
+        ]),
+    );
+const request = async (url, { method = "GET", data, signal } = {}) => {
+    const target = new URL(url, window.location.href);
+    if (target.origin !== window.location.origin)
+        throw new Error("The request must use this website.");
+    const headers = {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+    };
+    const options = {
+        method: method.toUpperCase(),
+        credentials: "same-origin",
+        headers,
+        signal,
+    };
+    if (options.method === "GET") {
+        for (const [key, value] of Object.entries(data ?? {}))
+            target.searchParams.set(key, value ?? "");
+    } else {
+        headers["X-CSRF-TOKEN"] =
+            document.querySelector('meta[name="csrf-token"]')?.content ?? "";
+        if (data instanceof FormData) options.body = data;
+        else {
+            headers["Content-Type"] = "application/json";
+            options.body = JSON.stringify(data ?? {});
+        }
+    }
+    const response = await fetch(target, options);
+    let body;
+    try {
+        body = response.status === 204 ? {} : ((await response.json()) ?? {});
+    } catch {
+        throw new Error(
+            `The server returned an unexpected response (${response.status}).`,
+        );
+    }
+    if (!response.ok || body.error) {
+        const error = new Error(body.message || response.statusText);
+        error.response = { status: response.status, data: body };
+        throw error;
+    }
+    return body;
+};
 
 class Kern {
-    static noticesTimeout = {}
-    static noticesTimeoutCount = 500
+    static noticesTimeout = new Map();
+    static noticesTimeoutCount = 500;
 
     constructor() {
-        this.initGlobalModal()
-        this.countCharacter()
-        this.manageSidebar()
-        this.handleWayPoint()
-        this.handleTurnOffDebugMode()
-        Kern.initNavbarMinimal()
-        Kern.initResources()
-        Kern.initGlobalResources()
-        Kern.handleCounterUp()
-        Kern.initMediaIntegrate()
-
-        if (
-            KernVariables &&
-            KernVariables.authorized === '0' &&
-            typeof KernVariables.authorize_url !== 'undefined'
-        ) {
-            this.processAuthorize()
-        }
-
-        this.countMenuItemNotifications()
+        this.initGlobalModal();
+        this.countCharacter();
+        this.manageSidebar();
+        this.handleWayPoint();
+        this.handleTurnOffDebugMode();
+        Kern.initNavbarMinimal();
+        Kern.initResources();
+        Kern.initGlobalResources();
+        Kern.handleCounterUp();
+        Kern.initMediaIntegrate();
+        this.countMenuItemNotifications();
+        if (variables().authorized === "0" && variables().authorize_url)
+            this.processAuthorize();
     }
 
-    static initCoreIcon() {
-        const $coreIcon = $(document).find('[data-bb-core-icon]')
-
-        const formatTemplate = ({ id, text }) => {
-            if (typeof id === 'undefined') {
-                id = ''
-            }
-
-            return $(`<span><span class="dropdown-item-indicator">${text}</span> ${id}</span>`)
-        }
-
-        Kern.select($coreIcon, {
-            ajax: {
-                url: $coreIcon.data('url'),
-                delay: 250,
-                cache: true,
-                data: function (params) {
-                    return {
-                        q: params.term,
-                        page: params.page || 1,
-                    }
-                },
-                processResults: function ({ data }) {
-                    return {
-                        results: $.map(data.data, function (icon, name) {
-                            return {
-                                text: icon,
-                                id: name,
-                            }
-                        }),
-                        pagination: {
-                            more: data.next_page_url && Object.keys(data.data).length > 0,
-                        },
-                    }
-                },
-            },
-            placeholder: $coreIcon.data('placeholder'),
-            templateResult: formatTemplate,
-            templateSelection: formatTemplate,
-        }, true)
+    static showNotice(type, message) {
+        const value = String(message ?? "");
+        const key = JSON.stringify([type, value]);
+        clearTimeout(Kern.noticesTimeout.get(key));
+        Kern.noticesTimeout.set(
+            key,
+            setTimeout(() => {
+                Kern.noticesTimeout.delete(key);
+                Toastify({
+                    text: value,
+                    duration: 5000,
+                    close: true,
+                    gravity: "bottom",
+                    position:
+                        document.documentElement.dir === "rtl"
+                            ? "left"
+                            : "right",
+                    stopOnFocus: true,
+                    escapeMarkup: true,
+                    ariaLive: type === "error" ? "assertive" : "polite",
+                    style: {
+                        background: type === "error" ? "#b42318" : "#257544",
+                    },
+                }).showToast();
+            }, Kern.noticesTimeoutCount),
+        );
     }
 
-    static blockUI(options) {
-        options = options || {}
-
-        Kern.showLoading(options.target)
+    static showError(message) {
+        Kern.showNotice("error", message);
     }
-
-    static unblockUI(target) {
-        Kern.hideLoading(target)
+    static showSuccess(message) {
+        Kern.showNotice("success", message);
     }
-
-    static showNotice(messageType, message, messageHeader = '') {
-        let key = `notices_msg.${messageType}.${message}`
-        let color = ''
-        let icon = ''
-
-        if (Kern.noticesTimeout[key]) {
-            clearTimeout(Kern.noticesTimeout[key])
-        }
-
-        Kern.noticesTimeout[key] = setTimeout(() => {
-            if (!messageHeader) {
-                switch (messageType) {
-                    case 'error':
-                        messageHeader = KernVariables.languages.notices_msg.error
-                        break
-                    case 'success':
-                        messageHeader = KernVariables.languages.notices_msg.success
-                        break
-                }
-            }
-
-            switch (messageType) {
-                case 'error':
-                    color = '#f44336'
-                    icon =
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 9v4" /><path d="M12 16v.01" /></svg>'
-                    break
-                case 'success':
-                    color = '#4caf50'
-                    icon =
-                        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>'
-                    break
-            }
-
-            Toastify({
-                text: message,
-                duration: 5000,
-                close: true,
-                gravity: 'bottom',
-                position: 'right',
-                stopOnFocus: true,
-                escapeMarkup: false,
-                icon: icon,
-                style: {
-                    background: color,
-                },
-            }).showToast()
-        }, Kern.noticesTimeoutCount)
+    static handleError(error) {
+        const data =
+            error?.response?.data ?? error?.responseJSON ?? error ?? {};
+        if (data.errors) Kern.handleValidationError(data.errors);
+        else
+            Kern.showError(
+                data.message ??
+                    error?.statusText ??
+                    "The request could not be completed.",
+            );
     }
-
-    static showError(message, messageHeader = '') {
-        this.showNotice('error', message, messageHeader)
-    }
-
-    static showSuccess(message, messageHeader = '') {
-        this.showNotice('success', message, messageHeader)
-    }
-
-    static handleError(data) {
-        if (typeof data.errors !== 'undefined' && !_.isArray(data.errors)) {
-            Kern.handleValidationError(data.errors)
-        } else {
-            if (typeof data.responseJSON !== 'undefined') {
-                if (typeof data.responseJSON.errors !== 'undefined') {
-                    if (data.status === 422) {
-                        Kern.handleValidationError(data.responseJSON.errors)
-                    }
-                } else if (typeof data.responseJSON.message !== 'undefined') {
-                    Kern.showError(data.responseJSON.message)
-                } else {
-                    $.each(data.responseJSON, (index, el) => {
-                        $.each(el, (key, item) => {
-                            Kern.showError(item)
-                        })
-                    })
-                }
-            } else {
-                Kern.showError(data.statusText)
-            }
-        }
-    }
-
     static handleValidationError(errors) {
-        let message = ''
-        $.each(errors, (index, item) => {
-            message += item + '\n'
-        })
-        Kern.showError(message)
+        Kern.showError(
+            Object.values(errors ?? {})
+                .flat()
+                .filter(Boolean)
+                .join("\n"),
+        );
+    }
+    static blockUI(options = {}) {
+        Kern.showLoading(options.target);
+    }
+    static unblockUI(target) {
+        Kern.hideLoading(target);
     }
 
-    static callScroll(obj) {
-        obj.mCustomScrollbar({
-            theme: 'dark',
-            scrollInertia: 0,
-            callbacks: {
-                whileScrolling: function () {
-                    obj.find('.tableFloatingHeaderOriginal').css({
-                        top: -this.mcs.top + 'px',
-                    })
-                },
-            },
-        })
-
-        obj.stickyTableHeaders({ scrollableArea: obj, fixedOffset: 2 })
+    static showButtonLoading(value, overlay = true, position = "start") {
+        for (const element of nodes(value)) {
+            const pending = loadingButtons.get(element);
+            if (pending) {
+                pending.count++;
+                continue;
+            }
+            const state = {
+                count: 1,
+                disabled: element.disabled,
+                busy: element.getAttribute("aria-busy"),
+                overlay,
+                hadClass: element.classList.contains("btn-loading"),
+            };
+            loadingButtons.set(element, state);
+            element.disabled = true;
+            element.setAttribute("aria-busy", "true");
+            if (overlay) element.classList.add("btn-loading");
+            else {
+                const spinner = text(
+                    "span",
+                    "",
+                    "spinner-border spinner-border-sm me-2",
+                );
+                spinner.dataset.kernSpinner = "";
+                spinner.setAttribute("aria-hidden", "true");
+                position === "end"
+                    ? element.append(spinner)
+                    : element.prepend(spinner);
+            }
+        }
     }
-
-    static async copyToClipboard(textToCopy, parentTarget) {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(textToCopy)
-        } else {
-            Kern.unsecuredCopyToClipboard(textToCopy, parentTarget)
+    static hideButtonLoading(value) {
+        for (const element of nodes(value)) {
+            const state = loadingButtons.get(element);
+            if (!state || --state.count > 0) continue;
+            element.disabled = state.disabled;
+            element.classList.toggle("btn-loading", state.hadClass);
+            state.busy === null
+                ? element.removeAttribute("aria-busy")
+                : element.setAttribute("aria-busy", state.busy);
+            element
+                .querySelectorAll("[data-kern-spinner]")
+                .forEach((spinner) => spinner.remove());
+            loadingButtons.delete(element);
+        }
+    }
+    static showLoading(value = null) {
+        for (const element of nodes(value ?? ".page-wrapper")) {
+            const state = loadingTargets.get(element);
+            if (state) {
+                state.count++;
+                continue;
+            }
+            const spinner = text("div", "", "loading-spinner");
+            spinner.setAttribute("role", "status");
+            spinner.setAttribute(
+                "aria-label",
+                variables().languages?.loading ?? "Loading",
+            );
+            loadingTargets.set(element, {
+                count: 1,
+                positioned: element.classList.contains("position-relative"),
+                busy: element.getAttribute("aria-busy"),
+                spinner,
+            });
+            element.classList.add("position-relative");
+            element.setAttribute("aria-busy", "true");
+            element.append(spinner);
+        }
+    }
+    static hideLoading(value = null) {
+        for (const element of nodes(value ?? ".page-wrapper")) {
+            const state = loadingTargets.get(element);
+            if (!state || --state.count > 0) continue;
+            state.spinner.remove();
+            element.classList.toggle("position-relative", state.positioned);
+            state.busy === null
+                ? element.removeAttribute("aria-busy")
+                : element.setAttribute("aria-busy", state.busy);
+            loadingTargets.delete(element);
         }
     }
 
-    static unsecuredCopyToClipboard(textToCopy, parentTarget) {
-        parentTarget = parentTarget || document.body
-        const textArea = document.createElement('textarea')
-        textArea.value = textToCopy
-        textArea.style.position = 'absolute'
-        textArea.style.left = '-999999px'
-        parentTarget.append(textArea)
-        textArea.select()
-
+    static async copyToClipboard(value, parent = document.body) {
+        if (navigator.clipboard && window.isSecureContext)
+            return navigator.clipboard.writeText(String(value ?? ""));
+        return Kern.unsecuredCopyToClipboard(value, parent);
+    }
+    static unsecuredCopyToClipboard(value, parent = document.body) {
+        const previous = document.activeElement;
+        const input = document.createElement("textarea");
+        input.value = String(value ?? "");
+        input.style.cssText = "position:fixed;left:-10000px;top:0";
+        parent.append(input);
+        input.select();
         try {
-            document.execCommand('copy')
-        } catch (error) {
-            console.error('Unable to copy to clipboard', error)
+            if (!document.execCommand("copy"))
+                throw new Error("Clipboard access failed.");
+        } finally {
+            input.remove();
+            previous?.focus();
         }
-
-        parentTarget.removeChild(textArea)
+    }
+    static initClipboard() {
+        delegate(
+            "click",
+            '[data-bb-toggle="clipboard"]',
+            async (event, trigger) => {
+                event.preventDefault();
+                const target = nodes(trigger.dataset.clipboardTarget)[0];
+                const content =
+                    trigger.dataset.clipboardText ??
+                    target?.value ??
+                    target?.textContent ??
+                    "";
+                await Kern.copyToClipboard(
+                    content,
+                    nodes(trigger.dataset.clipboardParent)[0] ?? document.body,
+                );
+                if (
+                    trigger.dataset.clipboardAction?.toLowerCase() === "cut" &&
+                    target
+                ) {
+                    target.value = "";
+                    change(target);
+                }
+                if (trigger.dataset.clipboardMessage)
+                    Kern.showSuccess(trigger.dataset.clipboardMessage);
+                trigger
+                    .querySelectorAll("[data-clipboard-icon]")
+                    .forEach((icon) => visible(icon, false));
+                trigger
+                    .querySelectorAll("[data-clipboard-success-icon]")
+                    .forEach((icon) => visible(icon, true));
+                setTimeout(() => {
+                    trigger
+                        .querySelectorAll("[data-clipboard-icon]")
+                        .forEach((icon) => visible(icon, true));
+                    trigger
+                        .querySelectorAll("[data-clipboard-success-icon]")
+                        .forEach((icon) => visible(icon, false));
+                }, 1000);
+            },
+        );
     }
 
-    initGlobalModal() {
-        $(() => {
-            $('[data-bb-toggle="modal"]').on('click', (event) => {
-                event.preventDefault()
-
-                const $this = $(event.currentTarget)
-
-                const modalType = $this.data('type')
-                const isActionModal = $this.data('actionModal')
-                const data = JSON.parse($this.data('payload'))
-                const actionUrl = $this.data('url')
-                const actionMethod = $this.data('method')
-                const confirmText = $this.data('confirmText')
-                const cancelText = $this.data('cancelText')
-
-                const modalId = `global-${modalType}-modal`
-                const modal = $('#' + modalId)
-
-                const modalTitle = $this.find('.modal-replace-title').html()
-                const modalDescription = $this.find('.modal-replace-description').html()
-
-                modal.find('.mb-2 i').siblings().remove()
-                modal.find('.mb-2').append(modalTitle)
-                modal.find('.mb-2').append(modalDescription)
-
-                if (!isActionModal) {
-                    modal.find('.modal-footer').remove()
-                } else {
-                    const modalFooter = `
-                    <div class='modal-footer'>
-                        <div class='w-100'>
-                            <div class='row'>
-                                <div class='col'>
-                                    <button type='button' class='w-100 btn' data-bs-dismiss='modal'>${cancelText}</button>
-                                </div>
-                                <div class='col'>
-                                    <button type='button' class='w-100 btn btn-${modalType} confirm-trigger-single-action-button'>${confirmText}</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    `
-                    modal.find('.modal-body').siblings().remove()
-                    modal.find('.modal-body').after(modalFooter)
-
-                    modal.find('.confirm-trigger-single-action-button').on('click', function () {
-                        $.ajax({
-                            type: actionMethod,
-                            url: actionUrl,
-                            data: data,
-                            success: (res) => {},
-                            error: (res) => {},
-                            complete: () => modal.modal('hide'),
-                        })
-                    })
-                }
-
-                modal.modal('show')
-            })
-        })
+    static numberFormat(
+        number,
+        decimals = 0,
+        decimalPoint = ".",
+        separator = ",",
+    ) {
+        const value = Number.isFinite(Number(number)) ? Number(number) : 0;
+        const precision = Math.min(
+            100,
+            Math.max(
+                0,
+                Number.isFinite(Number(decimals))
+                    ? Math.abs(Math.trunc(Number(decimals)))
+                    : 0,
+            ),
+        );
+        const rounded =
+            Math.round((value + Number.EPSILON) * 10 ** precision) /
+            10 ** precision;
+        const [integer, fraction] = rounded.toFixed(precision).split(".");
+        return (
+            integer.replace(/\B(?=(\d{3})+(?!\d))/g, separator) +
+            (precision ? decimalPoint + fraction : "")
+        );
+    }
+    static getViewPort() {
+        return { width: window.innerWidth, height: window.innerHeight };
+    }
+    static callScroll(value) {
+        for (const element of nodes(value)) {
+            element.style.overflow = "auto";
+            element.querySelectorAll("thead").forEach((header) => {
+                header.style.position = "sticky";
+                header.style.top = "0";
+            });
+        }
     }
 
     countCharacter() {
-        $.fn.charCounter = function (max, settings) {
-            max = max || 100
-            settings = $.extend(
-                {
-                    container: '<span></span>',
-                    classname: 'charcounter',
-                    format: `(%1/%2)`,
-                    pulse: true,
-                    delay: 0,
-                    allowOverLimit: false,
-                },
-                settings
-            )
-            let p, timeout
-
-            let count = (el, container) => {
-                el = $(el)
-                let current = el.val().length
-                let remaining = max - el.val().length
-                container.html(settings.format.replace(/%1/, current).replace(/%2/, max))
-
-                container.toggleClass('text-danger', el.val().length > max)
-
-                if (!settings.allowOverLimit && el.val().length > max) {
-                    el.val(el.val().substring(0, max))
-                    if (settings.pulse && !p) {
-                        pulse(container, true)
-                    }
-                }
-
-                if (settings.delay > 0) {
-                    if (timeout) {
-                        window.clearTimeout(timeout)
-                    }
-                    timeout = window.setTimeout(() => {
-                        container.html(settings.format.replace(/%1/, remaining).replace(/%2/, max))
-                    }, settings.delay)
-                }
-            }
-
-            let pulse = (el, again) => {
-                if (p) {
-                    window.clearTimeout(p)
-                    p = null
-                }
-
-                el.animate({ opacity: 0.1 }, 100, () => {
-                    $(el).animate({ opacity: 1.0 }, 100)
-                })
-
-                if (again) {
-                    p = window.setTimeout(() => pulse(el), 200)
-                }
-            }
-
-            return this.each((index, el) => {
-                let container
-                if (!settings.container.match(/^<.+>$/)) {
-                    container = $(settings.container)
-                } else {
-                    $(el)
-                        .nextAll('.' + settings.classname)
-                        .remove()
-
-                    container = $(settings.container).insertAfter(el).addClass(settings.classname)
-                }
-
-                $(el)
-                    .off('.charCounter')
-                    .on('keydown.charCounter', () => {
-                        count(el, container)
-                    })
-                    .on('keypress.charCounter', () => {
-                        count(el, container)
-                    })
-                    .on('keyup.charCounter', () => {
-                        count(el, container)
-                    })
-                    .on('focus.charCounter', () => {
-                        count(el, container)
-                    })
-                    .on('mouseover.charCounter', () => {
-                        count(el, container)
-                    })
-                    .on('mouseout.charCounter', () => {
-                        count(el, container)
-                    })
-                    .on('paste.charCounter', () => {
-                        setTimeout(() => {
-                            count(el, container)
-                        }, 10)
-                    })
-                if (el.addEventListener) {
-                    el.addEventListener(
-                        'input',
-                        () => {
-                            count(el, container)
-                        },
-                        false
+        const initialize = (element) =>
+            once(element, "counter", () => {
+                const limit = Number(element.dataset.counter);
+                if (!Number.isFinite(limit) || limit < 0) return;
+                const counter = text("small", "", "charcounter");
+                counter.setAttribute("aria-live", "polite");
+                element.after(counter);
+                const update = () => {
+                    if (
+                        !element.hasAttribute("data-allow-over-limit") &&
+                        element.value.length > limit
                     )
-                }
-                count(el, container)
-            })
-        }
-
-        $(document).on('click', 'input[data-counter], textarea[data-counter]', (event) => {
-            const $this = $(event.currentTarget)
-
-            $(event.currentTarget).charCounter($this.data('counter'), {
-                container: '<small></small>',
-                allowOverLimit: $this.data('allow-over-limit') == '' ? true : false,
-            })
-        })
+                        element.value = element.value.slice(0, limit);
+                    counter.textContent = `(${element.value.length}/${limit})`;
+                    counter.classList.toggle(
+                        "text-danger",
+                        element.value.length > limit,
+                    );
+                };
+                element.addEventListener("input", update);
+                update();
+            });
+        nodes("input[data-counter], textarea[data-counter]").forEach(
+            initialize,
+        );
+        delegate(
+            "focusin",
+            "input[data-counter], textarea[data-counter]",
+            (_event, element) => initialize(element),
+        );
     }
 
-    manageSidebar() {
-        let body = $('body')
-        let navigation = $('.navigation')
-        let sidebar_content = $('.sidebar-content')
-
-        navigation.find('li.active').parents('li').addClass('active')
-        navigation.find('li').has('ul').children('a').parent('li').addClass('has-ul')
-
-        $(document).on('click', '.sidebar-toggle.d-none', (event) => {
-            event.preventDefault()
-
-            body.toggleClass('sidebar-narrow')
-            body.toggleClass('page-sidebar-closed')
-
-            if (body.hasClass('sidebar-narrow')) {
-                navigation.children('li').children('ul').css('display', '')
-
-                sidebar_content.delay().queue(() => {
-                    $(event.currentTarget).show().addClass('animated fadeIn').clearQueue()
-                })
-            } else {
-                navigation.children('li').children('ul').hide()
-                navigation.children('li.active').children('ul').show()
-
-                sidebar_content.delay().queue(() => {
-                    $(event.currentTarget).show().addClass('animated fadeIn').clearQueue()
-                })
+    static select(value, options = {}, force = false) {
+        for (const element of nodes(value)) {
+            if (element.tagName !== "SELECT") continue;
+            if (selects.has(element)) {
+                if (!force) continue;
+                selects.get(element).destroy();
             }
-        })
-    }
-
-    static initNavbarMinimal() {
-        $(document).on('click', '[data-bb-toggle="navbar-minimal"]', (event) => {
-            const _self = $(event.currentTarget)
-            const navbar = $(_self.data('bb-target'))
-
-            if (navbar.length > 0) {
-                navbar.toggleClass('navbar-minimal')
-
-                $httpClient
-                    .makeWithoutErrorHandler()
-                    .post(
-                        _self.data('url'),
+            const remote =
+                options.ajax ??
+                (element.dataset.url
+                    ? {
+                          url: element.dataset.url,
+                          type: element.dataset.type ?? "GET",
+                          data: ({ term, page }) => ({
+                              [element.classList.contains("select-search-ajax")
+                                  ? "search"
+                                  : "q"]: term,
+                              page,
+                          }),
+                      }
+                    : null);
+            const searchable =
+                remote ||
+                element.matches(
+                    ".select-search-full, .select-autocomplete, .select-search-ajax, [data-bb-core-icon]",
+                );
+            if (!searchable) {
+                selects.set(element, {
+                    destroy() {
+                        selects.delete(element);
+                    },
+                });
+                continue;
+            }
+            const search = document.createElement("input");
+            search.type = "search";
+            search.className = "form-control mb-2";
+            const label = Array.from(element.labels ?? [])
+                .map((label) => label.textContent.trim())
+                .join(" ");
+            search.setAttribute(
+                "aria-label",
+                options.placeholder ||
+                    element.dataset.placeholder ||
+                    label ||
+                    "Search options",
+            );
+            search.placeholder =
+                element.dataset.placeholder || label || "Search options";
+            const status = text("span", "", "form-text");
+            status.setAttribute("role", "status");
+            const more = text(
+                "button",
+                variables().languages?.load_more ?? "Load more",
+                "btn btn-outline-secondary btn-sm",
+            );
+            more.type = "button";
+            more.hidden = true;
+            element.before(search);
+            element.after(status, more);
+            const original = Array.from(element.options);
+            let controller,
+                timer,
+                page = 1,
+                currentTerm = "";
+            const load = async (append = false) => {
+                controller?.abort();
+                controller = new AbortController();
+                const active = controller;
+                element.setAttribute("aria-busy", "true");
+                more.disabled = true;
+                try {
+                    const response = await request(
+                        typeof remote.url === "function"
+                            ? remote.url()
+                            : remote.url,
                         {
-                            _method: _self.data('method'),
-                            minimal_sidebar: navbar.hasClass('navbar-minimal') ? 'yes' : 'no'
-                        }
+                            method: remote.type ?? remote.method ?? "GET",
+                            data: remote.data?.({
+                                term: currentTerm,
+                                page,
+                            }) ?? { q: currentTerm, page },
+                            signal: active.signal,
+                        },
+                    );
+                    if (
+                        active.signal.aborted ||
+                        active !== controller ||
+                        !element.isConnected
                     )
-                    .then(() => {})
-                    .catch(() => {})
+                        return;
+                    const normalized = remote.processResults?.(response) ?? {
+                        results: Array.isArray(response.data)
+                            ? response.data
+                            : (response.data?.data ??
+                              response.data ??
+                              response),
+                        pagination: {
+                            more: Boolean(
+                                response.links?.next ??
+                                response.data?.next_page_url,
+                            ),
+                        },
+                    };
+                    const results = Array.isArray(normalized.results)
+                        ? normalized.results
+                        : Object.entries(normalized.results ?? {}).map(
+                              ([id, name]) => ({ id, text: name }),
+                          );
+                    if (!append)
+                        Array.from(element.options)
+                            .filter((option) => !option.selected)
+                            .forEach((option) => option.remove());
+                    for (const item of results) {
+                        const id = String(item.id ?? item.value ?? "");
+                        if (
+                            Array.from(element.options).some(
+                                (option) => option.value === id,
+                            )
+                        )
+                            continue;
+                        element.add(
+                            new Option(
+                                String(
+                                    item.text ?? item.name ?? item.label ?? id,
+                                ),
+                                id,
+                            ),
+                        );
+                    }
+                    more.hidden = !normalized.pagination?.more;
+                    status.textContent =
+                        String(results.length) +
+                        " " +
+                        (variables().languages?.results ?? "results");
+                } catch (error) {
+                    if (error.name !== "AbortError") {
+                        status.textContent = error.message;
+                        more.hidden = true;
+                    }
+                } finally {
+                    if (active === controller) {
+                        element.removeAttribute("aria-busy");
+                        more.disabled = false;
+                    }
+                }
+            };
+            search.addEventListener("input", () => {
+                currentTerm = search.value.trim();
+                if (!remote) {
+                    for (const option of original) {
+                        option.hidden =
+                            !option.selected &&
+                            !option.textContent
+                                .toLowerCase()
+                                .includes(currentTerm.toLowerCase());
+                    }
+                    return;
+                }
+                controller?.abort();
+                clearTimeout(timer);
+                page = 1;
+                if (
+                    currentTerm.length <
+                    Number(
+                        options.minimumInputLength ??
+                            element.dataset.minimumInput ??
+                            1,
+                    )
+                ) {
+                    more.hidden = true;
+                    return;
+                }
+                timer = setTimeout(
+                    () => load(),
+                    Number(remote.delay ?? options.delay ?? 250),
+                );
+            });
+            more.addEventListener("click", () => {
+                page++;
+                load(true);
+            });
+            const selected = parse(element.dataset.selected, {});
+            for (const [id, name] of Object.entries(selected)) {
+                if (
+                    !Array.from(element.options).some(
+                        (option) => option.value === id,
+                    )
+                )
+                    element.add(new Option(String(name), id, true, true));
             }
-        })
+            selects.set(element, {
+                destroy() {
+                    controller?.abort();
+                    clearTimeout(timer);
+                    search.remove();
+                    status.remove();
+                    more.remove();
+                    original.forEach((option) => {
+                        option.hidden = false;
+                    });
+                    selects.delete(element);
+                },
+            });
+        }
+    }
+    static initCoreIcon() {
+        Kern.select("[data-bb-core-icon]");
+    }
+    static initTreeCategoriesSelect() {
+        Kern.select('[data-bb-toggle="tree-categories-select"]');
     }
 
-    static initDatePicker(element) {
-        if (jQuery().flatpickr) {
-            const $element = $(document).find(element);
-
-            const $input = $element.find('input')
-
-            let format = $input.data('date-format')
-
-            if (!format) {
-                format = 'Y-m-d'
-            }
-
-            let locale = window.siteEditorLocale
-
-            if (locale === 'vi') {
-                locale = 'vn'
-            }
-
-            let options = {
-                dateFormat: format,
-                wrap: true,
-                locale: locale || 'en',
-            }
-
-            if ($input.data('options')) {
-                options = Object.assign(options, $input.data('options'))
-            }
-
-            $element.flatpickr(options)
+    static initDatePicker(value) {
+        if (typeof window.flatpickr !== "function") return;
+        for (const element of nodes(value)) {
+            const input = element.matches("input")
+                ? element
+                : element.querySelector("input");
+            if (!input || input._flatpickr || element._flatpickr) continue;
+            const locale =
+                window.siteEditorLocale === "vi"
+                    ? "vn"
+                    : window.siteEditorLocale;
+            const options = {
+                dateFormat: input.dataset.dateFormat ?? "Y-m-d",
+                ...parse(input.dataset.options, {}),
+            };
+            if (locale && window.flatpickr.l10ns?.[locale])
+                options.locale = locale;
+            if (input !== element) options.wrap = true;
+            window.flatpickr(element, options);
         }
+    }
+    static initColorPicker() {
+        for (const element of nodes("[data-bb-color-picker], .color-picker"))
+            once(element, "color", () => {
+                const control = document.createElement("input");
+                control.type = "color";
+                control.disabled = element.disabled || element.readOnly;
+                control.className = "form-control form-control-color";
+                control.setAttribute(
+                    "aria-label",
+                    element.labels?.[0]?.textContent ?? "Choose color",
+                );
+                const sync = () => {
+                    if (/^#[\da-f]{6}$/i.test(element.value))
+                        control.value = element.value;
+                };
+                control.addEventListener("input", () => {
+                    element.value = control.value;
+                    element.dispatchEvent(
+                        new Event("input", { bubbles: true }),
+                    );
+                    change(element);
+                });
+                element.addEventListener("input", sync);
+                element.after(control);
+                sync();
+            });
+    }
+    static initCodeEditor(value, mode = "css") {
+        const element =
+            typeof value === "string" ? document.getElementById(value) : value;
+        if (!element || !window.CodeMirror) return;
+        once(element, "code-editor", () => {
+            const editor = window.CodeMirror.fromTextArea(element, {
+                extraKeys: { "Ctrl-Space": "autocomplete" },
+                lineNumbers: true,
+                mode,
+                lineWrapping: true,
+            });
+            editor.on("change", () => {
+                editor.save();
+                element.dispatchEvent(new Event("input", { bubbles: true }));
+            });
+            const handle = text("button", "↕", "handle-tool-drag");
+            handle.type = "button";
+            handle.setAttribute("aria-label", "Resize editor");
+            element.parentElement.append(handle);
+            handle.addEventListener("pointerdown", (event) => {
+                const start = event.clientY,
+                    height = editor.getWrapperElement().offsetHeight;
+                handle.setPointerCapture(event.pointerId);
+                const move = (current) =>
+                    editor.setSize(
+                        null,
+                        Math.max(200, height + current.clientY - start),
+                    );
+                handle.addEventListener("pointermove", move);
+                handle.addEventListener(
+                    "pointerup",
+                    () => handle.removeEventListener("pointermove", move),
+                    { once: true },
+                );
+            });
+            handle.addEventListener("keydown", (event) => {
+                if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
+                event.preventDefault();
+                editor.setSize(
+                    null,
+                    Math.max(
+                        200,
+                        editor.getWrapperElement().offsetHeight +
+                            (event.key === "ArrowDown" ? 40 : -40),
+                    ),
+                );
+            });
+        });
+    }
+    static initCodeEditorComponent() {
+        nodes("textarea[data-bb-code-editor]").forEach((element) =>
+            Kern.initCodeEditor(element, element.dataset.mode ?? "htmlmixed"),
+        );
     }
 
     static initResources() {
-        $(document).on('click', '[data-bb-toggle="check-all"]', (e) => {
-            const currentTarget = $(e.currentTarget)
-            const targets = $(currentTarget.data('bb-target'))
-
-            if (currentTarget.prop('checked')) {
-                targets.prop('checked', true)
-                currentTarget.prop('checked', false)
-            } else {
-                targets.prop('checked', false)
-                currentTarget.prop('checked', true)
-            }
-        })
-
-        $(document).find('[data-bb-toggle="check-all"]').each(function (index, element) {
-            const $checkboxChildren = $(document).find($(element).attr('data-target'))
-
-            const $parent = $(element).find('input[type=checkbox]')
-
-            if ($checkboxChildren.length === $checkboxChildren.filter(':checked').length) {
-                $parent.prop('indeterminate', false)
-                $parent.prop('checked', true)
-            } else {
-                $parent.prop('indeterminate', true)
-            }
-        })
-
-        $(document).find('[data-bb-toggle="check-all"]').each(function (index, element) {
-            $(document).on('click', $(element).attr('data-target'), () => {
-                const $checkboxChildren = $(document).find($(element).attr('data-target'))
-
-                const $parent = $(element).find('input[type=checkbox]')
-
-                if ($checkboxChildren.length === $checkboxChildren.filter(':checked').length) {
-                    $parent.prop('indeterminate', false)
-                    $parent.prop('checked', true)
-                } else {
-                    $parent.prop('indeterminate', true)
-                }
-            })
-        })
-
-        $(document).on('change', '.check-all', (event) => {
-            let _self = $(event.currentTarget)
-            let set = _self.attr('data-set')
-            let checked = _self.find('input').prop('checked')
-            $(set).each((index, el) => {
-                if (checked) {
-                    $(el).prop('checked', true)
-                } else {
-                    $(el).prop('checked', false)
-                }
-            })
-        })
-
-        $(document).find('.check-all').each(function (index, element) {
-            $(document).on('click', $(element).attr('data-set'), () => {
-                const $checkboxChildren = $(document).find($(element).attr('data-set'))
-
-                const $parent = $(element).find('input[type=checkbox]')
-
-                if ($checkboxChildren.length === $checkboxChildren.filter(':checked').length) {
-                    $parent.prop('indeterminate', false)
-                    $parent.prop('checked', true)
-                } else {
-                    $parent.prop('indeterminate', true)
-                }
-            })
-        })
-
-        $(document).find('.check-all').each(function (index, element) {
-            const $checkboxChildren = $(document).find($(element).attr('data-set'))
-
-            const $parent = $(element).find('input[type=checkbox]')
-
-            if ($checkboxChildren.length === $checkboxChildren.filter(':checked').length) {
-                $parent.prop('indeterminate', false)
-                $parent.prop('checked', true)
-            } else {
-                $parent.prop('indeterminate', true)
-            }
-        })
-
-        $.each($(document).find('select.select-search-full'), function (index, element) {
-            Kern.select(element)
-        })
-
-        $.each($(document).find('select.select-full'), function (index, element) {
-            Kern.select(element, {
-                controlInput: null,
-            })
-        })
-
-        $(document)
-            .find('select.select-autocomplete')
-            .each(function (index, element) {
-                Kern.select(element, {
-                    minimumInputLength: $(element).data('minimum-input') || 1,
-                    width: '100%',
-                    delay: 250,
-                    ajax: {
-                        url: $(element).data('url'),
-                        data: (params) => ({ q: params.term, page: params.page || 1 }),
-                        dataType: 'json',
-                        type: $(element).data('type') || 'GET',
-                        processResults: function (response) {
-                            return {
-                                results: $.map(response.data, function (item) {
-                                    return Object.assign(
-                                        {
-                                            text: item.name,
-                                            id: item.id,
-                                        },
-                                        item
-                                    )
-                                }),
-                                pagination: {
-                                    more: response.links ? response.links.next : null,
-                                },
-                            }
-                        },
-                        cache: true,
-                    },
-                })
-            })
-
-        $.each($(document).find('.select-multiple'), function (index, element) {
-            const $element = $(element)
-
-            Kern.select(element, {
-                allowClear: $element.data('allow-clear'),
-                placeholder: $element.data('placeholder'),
-            })
-
-            if ($(this).hasClass('.select-sorting')) {
-                $(this).on('select2:select', function (e) {
-                    const $element = $(e.params.data.element)
-
-                    $element.detach()
-
-                    $(this).append($element)
-
-                    $(this).trigger('change')
-                })
-            }
-        })
-
-        $.each($(document).find('.select-search-ajax'), function (index, element) {
-            const $element = $(element)
-
-            if ($element.data('url')) {
-                let options = {
-                    placeholder: $element.data('placeholder') || '--Select--',
-                    minimumInputLength: $element.data('minimum-input') || 1,
-                    width: '100%',
-                    delay: 250,
-                    ajax: {
-                        url: $element.data('url'),
-                        dataType: 'json',
-                        type: $element.data('type') || 'GET',
-                        quietMillis: 50,
-                        data: function (params) {
-                            // Query parameters will be ?search=[term]&page=[page]
-                            return {
-                                search: params.term,
-                                page: params.page || 1,
-                            }
-                        },
-                        processResults: function (response) {
-                            /**
-                             * response {
-                             *  error: false
-                             *  data: {},
-                             *  message: ''
-                             * }
-                             */
-                            const data = Array.isArray(response.data) ? response.data : response.data.data
-
-                            return {
-                                results: $.map(data, function (item) {
-                                    return {
-                                        text: item.name,
-                                        id: item.id,
-                                    }
-                                }),
-                                pagination: {
-                                    more: response.links ? response.links.next : null,
-                                },
-                            }
-                        },
-                        cache: true,
-                    },
-                    allowClear: true,
-                }
-
-                Kern.select(element, options)
-                const selected = $element.data('selected')
-
-                if (typeof selected !== 'undefined' && Object.keys(selected).length > 0) {
-                    Object.keys(selected).forEach((key) => {
-                        const option = new Option(selected[key], key, true, true)
-                        $element.append(option).trigger('change')
-                    })
-                }
-            }
-        })
-
-        $(document)
-            .find('[data-bb-toggle="google-font-selector"]')
-            .each(function (i, element) {
-                if (!$(element).hasClass('select2-hidden-accessible')) {
-                    let options = {
-                        templateResult: function (opt) {
-                            if (!opt.id) {
-                                return opt.text
-                            }
-
-                            return $('<span style="font-family:\'' + opt.id + '\';"> ' + opt.text + '</span>')
-                        },
-                        width: '100%',
-                    }
-
-                    Kern.select(element, options)
-                }
-            })
-
-        if (jQuery().timepicker) {
-            $('.timepicker-default').timepicker({
-                autoclose: true,
-                showSeconds: false,
-                minuteStep: 1,
-                defaultTime: false,
-            })
-
-            $('.timepicker-24').timepicker({
-                autoclose: true,
-                minuteStep: 5,
-                showSeconds: false,
-                showMeridian: false,
-                defaultTime: false,
-                icons: {
-                    up: 'icon ti ti-chevron-up',
-                    down: 'icon ti ti-chevron-down',
-                },
-            })
-        }
-
-        if (jQuery().inputmask) {
-            $.each($(document).find('.input-mask-number'), function (index, element) {
-                $(element).inputmask({
-                    alias: 'numeric',
-                    rightAlign: false,
-                    digits: $(element).data('digits') ?? 5,
-                    groupSeparator: $(element).data('thousands-separator') ?? ',',
-                    radixPoint: $(element).data('decimal-separator') ?? '.',
-                    digitsOptional: true,
-                    placeholder: $(element).data('placeholder') ?? '0',
-                    autoGroup: true,
-                    autoUnmask: true,
-                    removeMaskOnSubmit: true,
-                })
-            })
-        }
-
-        if (jQuery().colorpicker) {
-            $.each($(document).find('.color-picker'), function (index, element) {
-                $(element)
-                    .colorpicker({
-                        popover: false,
-                        inline: false,
-                        container: true,
-                        format: 'hex',
-                        extensions: [
-                            {
-                                name: 'swatches',
-                                options: {
-                                    colors: {
-                                        tetrad1: '#000000',
-                                        tetrad2: '#000000',
-                                        tetrad3: '#000000',
-                                        tetrad4: '#000000',
-                                    },
-                                    namesAsValues: false,
-                                },
-                            },
-                        ],
-                    })
-                    .on('colorpickerChange colorpickerCreate', function (e) {
-                        let colors = e.color.generate('tetrad')
-
-                        colors.forEach(function (color, i) {
-                            let colorStr = color.string(),
-                                swatch = e.colorpicker.picker.find(
-                                    '.colorpicker-swatch[data-name="tetrad' + (i + 1) + '"]'
-                                )
-
-                            swatch
-                                .attr('data-value', colorStr)
-                                .attr('title', colorStr)
-                                .find('> i')
-                                .css('background-color', colorStr)
-                        })
-                    })
-            })
-        }
-
-        if (jQuery().fancybox) {
-            $('.iframe-btn').fancybox({
-                width: '900px',
-                height: '700px',
-                type: 'iframe',
-                autoScale: false,
-                openEffect: 'none',
-                closeEffect: 'none',
-                overlayShow: true,
-                overlayOpacity: 0.7,
-            })
-
-            $('.fancybox').fancybox({
-                openEffect: 'none',
-                closeEffect: 'none',
-                overlayShow: true,
-                overlayOpacity: 0.7,
-                helpers: {
-                    media: {},
-                },
-            })
-        }
-
-        if (jQuery().tooltip) {
-            $('[data-bs-toggle="tooltip"]').tooltip({ placement: 'top', boundary: 'window' })
-        }
-
-        if (jQuery().areYouSure) {
-            $('form.dirty-check').areYouSure()
-        }
-
-        function urlify(text) {
-            const urlRegex = /(https?:\/\/[^\s]+)/g;
-
-            if (
-                text.includes('<a ')
-                || text.includes('</a>')
-                || text.includes(' href=')
-                || text.includes('target="_blank"')
-            ) {
-                return text
-            }
-
-            return text.replace(urlRegex, function(url) {
-                return '<a href="' + url + '" target="_blank">' + url + '</a>';
-            })
-        }
-
-        $.each($(document).find('.form-text'), function (index, element) {
-            $(element).html(urlify($(element).html()))
-        })
-
-        Kern.initDatePicker('.datepicker')
-
-        if (jQuery().textareaAutoSize) {
-            $('textarea.textarea-auto-height').textareaAutoSize()
-        }
-
-        Kern.initCodeEditorComponent()
-        Kern.initColorPicker()
-        Kern.initLightbox()
-        Kern.initTreeCategoriesSelect()
-        Kern.initCoreIcon()
-
-        document.dispatchEvent(new CustomEvent('core-init-resources'))
-    }
-
-    static initGlobalResources() {
-        $(document).on('submit', '.js-base-form', (event) => {
-            $(event.currentTarget).find('button[type=submit]').addClass('disabled')
-        })
-
-        $(document).on('change', '.media-image-input', function () {
-            const input = this
-
-            if (input.files && input.files.length > 0) {
-                const reader = new FileReader()
-                reader.onload = function (e) {
-                    $(input).closest('.image-box').find('.preview-image').prop('src', e.target.result)
-                }
-
-                reader.readAsDataURL(input.files[0])
-            }
-        })
-
-        $(document).on('click', '.media-select-file', function (event) {
-            event.preventDefault()
-            event.stopPropagation()
-            $(this).closest('.attachment-wrapper').find('.media-file-input').trigger('click')
-        })
-
-        Kern.initFieldCollapse()
-        Kern.initTreeCheckboxes()
-        Kern.initClipboard()
-        Kern.initDropdownCheckboxes()
-    }
-
-    static numberFormat(number, decimals, dec_point, thousands_sep) {
-        // *     example 1: number_format(1234.56);
-        // *     returns 1: '1,235'
-        // *     example 2: number_format(1234.56, 2, ',', ' ');
-        // *     returns 2: '1 234,56'
-        // *     example 3: number_format(1234.5678, 2, '.', '');
-        // *     returns 3: '1234.57'
-        // *     example 4: number_format(67, 2, ',', '.');
-        // *     returns 4: '67,00'
-        // *     example 5: number_format(1000);
-        // *     returns 5: '1,000'
-        // *     example 6: number_format(67.311, 2);
-        // *     returns 6: '67.31'
-        // *     example 7: number_format(1000.55, 1);
-        // *     returns 7: '1,000.6'
-        // *     example 8: number_format(67000, 5, ',', '.');
-        // *     returns 8: '67.000,00000'
-        // *     example 9: number_format(0.9, 0);
-        // *     returns 9: '1'
-        // *    example 10: number_format('1.20', 2);
-        // *    returns 10: '1.20'
-        // *    example 11: number_format('1.20', 4);
-        // *    returns 11: '1.2000'
-        // *    example 12: number_format('1.2000', 3);
-        // *    returns 12: '1.200'
-        let n = !isFinite(+number) ? 0 : +number,
-            precision = !isFinite(+decimals) ? 0 : Math.abs(decimals),
-            sep = typeof thousands_sep === 'undefined' ? ',' : thousands_sep,
-            dec = typeof dec_point === 'undefined' ? '.' : dec_point,
-            toFixedFix = (n, precision) => {
-                // Fix for IE parseFloat(0.55).toFixed(0) = 0;
-                let k = Math.pow(10, precision)
-                return Math.round(n * k) / k
-            },
-            s = (precision ? toFixedFix(n, precision) : Math.round(n)).toString().split('.')
-        if (s[0].length > 3) {
-            s[0] = s[0].replace(/\B(?=(?:\d{3})+(?!\d))/g, sep)
-        }
-
-        if ((s[1] || '').length < precision) {
-            s[1] = s[1] || ''
-            s[1] += new Array(precision - s[1].length + 1).join('0')
-        }
-
-        return s.join(dec)
-    }
-
-    handleWayPoint() {
-        $(document)
-            .find('[data-bb-waypoint]')
-            .each(function () {
-                const target = $($(this).data('bb-target'))
-
-                new Waypoint({
-                    element: $(this),
-                    handler: (direction) => {
-                        if (direction === 'down') {
-                            target.show()
-                        } else {
-                            target.hide()
-                        }
-                    },
-                })
-            })
-    }
-
-    handleTurnOffDebugMode() {
-        const debugConfirmationModal = $(document).find('#debug-mode-turn-off-confirmation-modal')
-
-        if (!debugConfirmationModal.length) {
-            return
-        }
-
-        const $submit = debugConfirmationModal.find('#debug-mode-turn-off-form-submit')
-
-        if (!$submit.length) {
-            return
-        }
-
-        $submit.on('click', function (event) {
-            event.preventDefault()
-
-            Kern.showButtonLoading($submit[0])
-
-            $httpClient
-                .make()
-                .post($submit.data('url'))
-                .then(({ data }) => {
-                    Kern.showSuccess(data.message)
-
-                    debugConfirmationModal.modal('hide')
-
-                    setTimeout(() => {
-                        window.location.reload()
-                    }, 1000)
-                })
-                .finally(() => {
-                    Kern.hideButtonLoading($submit[0])
-                })
-        })
-    }
-
-    static handleCounterUp() {
-        if (!$().counterUp) {
-            return
-        }
-
-        $('[data-counter="counterup"]').counterUp({
-            delay: 10,
-            time: 1000,
-        })
-    }
-
-    static openMediaUsing(callback) {}
-
-    static handleOpenMedia(item) {}
-
-    static initMediaIntegrate() {
-        if (jQuery().rvMedia) {
-            Kern.gallerySelectImageTemplate = `
-            <div class='custom-image-box image-box'>
-                <input type='hidden' name='__name__' value='' class='image-data'>
-                    <div class='preview-image-wrapper w-100'>
-                    <div class='preview-image-inner'>
-                        <img src='${RV_MEDIA_CONFIG.default_image}' alt='${RV_MEDIA_CONFIG.translations.preview_image}' class='preview-image'>
-                        <div class='image-picker-backdrop'></div>
-                        <span class='image-picker-remove-button'>
-                            <button data-bb-toggle='image-picker-remove' class='btn btn-sm btn-icon'>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm icon-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                  <path d="M18 6l-12 12" />
-                                  <path d="M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </span>
-                        <div data-bb-toggle='image-picker-edit' class='image-box-actions cursor-pointer'></div>
-                    </div>
-                </div>
-            </div>`
-
-            const $btnGalleries = $('.btn_gallery')
-
-            if ($btnGalleries.length > 0) {
-                $btnGalleries.each(function () {
-                    const item = $(this)
-
-                    $(item).rvMedia({
-                        multiple: false,
-                        filter: $(item).data('action') === 'select-image' ? 'image' : 'everything',
-                        view_in: 'all_media',
-                        onSelectFiles: (files, $el) => {
-                            switch ($el.data('action')) {
-                                case 'media-insert-ckeditor':
-                                    let content = ''
-                                    $.each(files, (index, file) => {
-                                        let link = file.full_url
-                                        if (file.type === 'youtube') {
-                                            link = link.replace('watch?v=', 'embed/')
-                                            content +=
-                                                '<iframe width="420" height="315" src="' +
-                                                link +
-                                                '" frameborder="0" allowfullscreen loading="lazy"></iframe><br />'
-                                        } else if (file.type === 'image') {
-                                            const alt = file.alt ? file.alt : file.name
-                                            content +=
-                                                '<img src="' + link + '" alt="' + alt + '" loading="lazy"/><br />'
-                                        } else {
-                                            content += '<a href="' + link + '">' + file.name + '</a><br />'
-                                        }
-                                    })
-
-                                    window.EDITOR.CKEDITOR[$el.data('result')].insertHtml(content)
-
-                                    break
-                                case 'media-insert-tinymce':
-                                    let html = ''
-                                    $.each(files, (index, file) => {
-                                        let link = file.full_url
-                                        if (file.type === 'youtube') {
-                                            link = link.replace('watch?v=', 'embed/')
-                                            html += `<iframe width='420' height='315' src='${link}' allowfullscreen loading='lazy'></iframe><br />`
-                                        } else if (file.type === 'image') {
-                                            const alt = file.alt ? file.alt : file.name
-                                            html += `<img src='${link}' alt='${alt}' loading='lazy'/><br />`
-                                        } else {
-                                            html += `<a href='${link}'>${file.name}</a><br />`
-                                        }
-                                    })
-                                    tinymce.activeEditor.execCommand('mceInsertContent', false, html)
-                                    break
-                                case 'select-image':
-                                    let firstImage = _.first(files)
-                                    const $imageBox = $el.closest('.image-box')
-                                    const allowThumb = $el.data('allow-thumb')
-                                    $imageBox.find('.image-data').val(firstImage.url).trigger('change')
-                                    $imageBox
-                                        .find('.preview-image')
-                                        .attr(
-                                            'src',
-                                            allowThumb && firstImage.thumb ? firstImage.thumb : firstImage.full_url
-                                        )
-                                    $imageBox.find('[data-bb-toggle="image-picker-remove"]').show()
-                                    $imageBox.find('.preview-image').removeClass('default-image')
-                                    $imageBox.find('.preview-image-wrapper').show()
-                                    break
-                                case 'attachment':
-                                    const attachment = _.first(files)
-                                    const wrapper = $el.closest('.attachment-wrapper')
-                                    wrapper.find('.attachment-url').val(attachment.url)
-                                    wrapper.find('.attachment-info').html(`
-                                        <a href="${attachment.full_url}" target="_blank" title="${attachment.name}">${attachment.url}</a>
-                                        <small class="d-block">${attachment.size}</small>
-                                    `)
-
-                                    wrapper.find('[data-bb-toggle="media-file-remove"]').show()
-                                    wrapper.find('.attachment-details').removeClass('hidden')
-                                    break
-                                default:
-                                    const coreInsertMediaEvent = new CustomEvent('core-insert-media', {
-                                        detail: {
-                                            files: files,
-                                            element: $el,
-                                        },
-                                    })
-                                    document.dispatchEvent(coreInsertMediaEvent)
-                            }
-                        },
-                    })
-                })
-            }
-
-            const gallerySelectImages = function (files, $currentBoxList, excludeIndexes = []) {
-                let template = Kern.gallerySelectImageTemplate
-                const allowThumb = $currentBoxList.data('allow-thumb')
-                _.forEach(files, (file, index) => {
-                    if (_.includes(excludeIndexes, index)) {
-                        return
-                    }
-                    let imageBox = template.replace(/__name__/gi, $currentBoxList.data('name'))
-
-                    let $template = $(
-                        '<div class="col-lg-2 col-md-3 col-4 gallery-image-item-handler mb-2">' + imageBox + '</div>'
+        Kern.select(
+            "select.select-search-full, select.select-full, select.select-autocomplete, select.select-search-ajax, select.select-multiple",
+        );
+        Kern.initDatePicker(".datepicker");
+        Kern.initColorPicker();
+        Kern.initCodeEditorComponent();
+        Kern.initCoreIcon();
+        Kern.initTreeCategoriesSelect();
+        Kern.initLightbox();
+        for (const element of nodes('[data-bs-toggle="tooltip"]'))
+            window.bootstrap?.Tooltip?.getOrCreateInstance(element);
+        for (const element of nodes("textarea.textarea-auto-height"))
+            once(element, "autosize", () => {
+                const resize = () => {
+                    element.style.height = "auto";
+                    element.style.height = `${element.scrollHeight}px`;
+                };
+                element.addEventListener("input", resize);
+                resize();
+            });
+        for (const form of nodes("form"))
+            once(form, "numeric-submit", () => {
+                form.addEventListener("formdata", (event) =>
+                    Kern.unmaskInputNumber(form, event.formData),
+                );
+                for (const input of form.querySelectorAll(".input-mask-number"))
+                    input.inputMode = "decimal";
+            });
+        for (const form of nodes("form.dirty-check"))
+            once(form, "dirty", () => {
+                dirtyForms.set(form, {
+                    baseline: formSnapshot(form),
+                    dirty: false,
+                });
+                const update = () => {
+                    dirtyForms.get(form).dirty =
+                        formSnapshot(form) !== dirtyForms.get(form).baseline;
+                };
+                form.addEventListener("input", update);
+                form.addEventListener("change", update);
+                form.addEventListener("core:form-saved", () => {
+                    dirtyForms.set(form, {
+                        baseline: formSnapshot(form),
+                        dirty: false,
+                    });
+                });
+            });
+        if (!listeners.has("beforeunload")) {
+            listeners.add("beforeunload");
+            window.addEventListener("beforeunload", (event) => {
+                if (
+                    !nodes("form.dirty-check").some(
+                        (form) => dirtyForms.get(form)?.dirty,
                     )
-
-                    $template.find('.image-data').val(file.url).trigger('change')
-                    $template
-                        .find('.preview-image')
-                        .attr('src', allowThumb ? file.thumb : file.full_url)
-                        .show()
-                    if (!allowThumb) {
-                        $template.find('.preview-image-wrapper').addClass('preview-image-wrapper-not-allow-thumb')
-                    }
-                    $currentBoxList.append($template)
-                    $('.list-images').find('.footer-action').show()
-                })
-            }
-
-            new RvMediaStandAlone('[data-bb-toggle="gallery-add"]', {
-                filter: 'image',
-                view_in: 'all_media',
-                onSelectFiles: (files, $el) => {
-                    let $currentBoxList = $el
-                        .closest('.gallery-images-wrapper')
-                        .find('.images-wrapper .list-gallery-media-images')
-
-                    $currentBoxList.removeClass('hidden')
-
-                    $('.default-placeholder-gallery-image').addClass('hidden')
-
-                    gallerySelectImages(files, $currentBoxList)
-                },
-            })
-
-            new RvMediaStandAlone('[data-bb-toggle="image-picker-edit"]', {
-                filter: 'image',
-                view_in: 'all_media',
-                onSelectFiles: (files, $el) => {
-                    let firstItem = _.first(files)
-
-                    let $currentBox = $el.closest('.gallery-image-item-handler').find('.image-box')
-                    let $currentBoxList = $el.closest('.list-gallery-media-images')
-                    const allowThumb = $currentBoxList.data('allow-thumb')
-
-                    $currentBox.find('.image-data').val(firstItem.url).trigger('change')
-                    $currentBox
-                        .find('.preview-image')
-                        .attr('src', allowThumb ? firstItem.thumb : firstItem.full_url)
-                        .show()
-
-                    gallerySelectImages(files, $currentBoxList, [0])
-                },
-            })
-
-            $.each(
-                $(document).find('[data-bb-toggle="image-picker-choose"][data-target="popup"]'),
-                function (index, item) {
-                    const _self = $(item)
-
-                    _self.rvMedia({
-                        multiple: false,
-                        filter: 'image',
-                        view_in: 'all_media',
-                        onSelectFiles: (files, $el) => {
-                            let firstImage = _.first(files)
-                            const $imageBox = $el.closest('.image-box')
-                            const allowThumb = $el.data('allow-thumb')
-                            $imageBox.find('.image-data').val(firstImage.url).trigger('change')
-                            $imageBox
-                                .find('.preview-image')
-                                .attr('src', allowThumb && firstImage.thumb ? firstImage.thumb : firstImage.full_url)
-                            $imageBox.find('[data-bb-toggle="image-picker-remove"]').show()
-                            $imageBox.find('.preview-image').removeClass('default-image')
-                            $imageBox.find('.preview-image-wrapper').show()
-
-                            const coreInsertMediaEvent = new CustomEvent('core-insert-media', {
-                                detail: {
-                                    files: files,
-                                    element: $el,
-                                },
-                            })
-
-                            document.dispatchEvent(coreInsertMediaEvent)
-                        },
-                    })
-                }
-            )
+                )
+                    return;
+                event.preventDefault();
+                event.returnValue = "";
+            });
         }
-
-        $(document).on('click', '[data-bb-toggle="image-picker-choose"][data-target="direct"]', (event) => {
-            event.preventDefault()
-            event.stopPropagation()
-
-            $(event.currentTarget).closest('.image-box').find('.media-image-input').trigger('click')
-        })
-
-        $(document).on('show.bs.modal', '#image-picker-add-from-url', (event) => {
-            const relatedTarget = $(event.relatedTarget)
-            const imageBoxTarget = relatedTarget.data('bb-target')
-
-            const modal = $(event.currentTarget)
-            modal.find('input[name="image-box-target"]').val(imageBoxTarget)
-        })
-
-        $(document).on('submit', '#image-picker-add-from-url-form', (event) => {
-            event.preventDefault()
-
-            const form = $(event.currentTarget)
-            const modal = form.closest('.modal')
-            const button = modal.find('button[type="submit"]')
-
-            const imageUrl = form.find('input[name="url"]').val()
-
-            if (form.find('#download_image_to_local_storage').is(':checked')) {
-                $httpClient
-                    .make()
-                    .withButtonLoading(button)
-                    .post(form.prop('action'), {
-                        url: imageUrl,
-                        folderId: 0,
-                    })
-                    .then(({ data }) => {
-                        form[0].reset()
-                        modal.modal('hide')
-
-                        const $imageBox = $(form.find('input[name="image-box-target"]').val())
-                        $imageBox.find('.image-data').val(data.data.url).trigger('change')
-                        $imageBox.find('.preview-image').prop('src', data.data.src)
-                        $imageBox.find('[data-bb-toggle="image-picker-remove"]').show()
-                        $imageBox.find('.preview-image').removeClass('default-image')
-                        $imageBox.find('.preview-image-wrapper').show()
-                    })
-            } else {
-                form[0].reset()
-                modal.modal('hide')
-
-                const $imageBox = $(form.find('input[name="image-box-target"]').val())
-                $imageBox.find('.image-data').val(imageUrl).trigger('change')
-                $imageBox.find('.preview-image').prop('src', imageUrl)
-                $imageBox.find('[data-bb-toggle="image-picker-remove"]').show()
-                $imageBox.find('.preview-image').removeClass('default-image')
-                $imageBox.find('.preview-image-wrapper').show()
-            }
-        })
-
-        $(document).on('click', '[data-bb-toggle="image-picker-remove"]', (event) => {
-            event.preventDefault()
-            const $this = $(event.currentTarget)
-            let $imageBox = $this.closest('.image-box')
-            $imageBox
-                .find('.preview-image-wrapper img')
-                .prop('src', $imageBox.find('.preview-image-wrapper img').data('default'))
-            $imageBox.find('.image-data').val('').trigger('change')
-            $imageBox.find('.preview-image').addClass('default-image')
-            $this.hide()
-        })
-
-        $(document).on('click', '[data-bb-toggle="media-file-remove"]', (event) => {
-            event.preventDefault()
-
-            const currentTarget = $(event.currentTarget)
-            const wrapper = currentTarget.closest('.attachment-wrapper')
-
-            wrapper.find('.attachment-details').addClass('hidden')
-            wrapper.find('.attachment-url').val('')
-
-            currentTarget.hide()
-        })
-
-        $(document).on('click', '[data-bb-toggle="image-picker-remove"]', (e) => {
-            e.preventDefault()
-            const $this = $(e.currentTarget)
-            $this.tooltip('dispose')
-            const $list = $this.closest('.list-gallery-media-images')
-            $this.closest('.gallery-image-item-handler').remove()
-            if ($list.find('.gallery-image-item-handler').length === 0) {
-                const $listImage = $list.closest('.list-images')
-                $listImage.find('.default-placeholder-gallery-image').removeClass('hidden')
-                $listImage.find('.footer-action').hide()
-            }
-        })
-
-        const $listImages = $('.list-images')
-
-        if ($listImages.length) {
-            $(document).on('click', '[data-bb-toggle="gallery-reset"]', (e) => {
-                e.preventDefault()
-
-                $listImages.find('.list-gallery-media-images .gallery-image-item-handler').remove()
-                $listImages.find('.default-placeholder-gallery-image').removeClass('hidden')
-                $listImages.find('.footer-action').hide()
-            })
-
-            $listImages.find('.list-gallery-media-images').each((index, item) => {
-                if (jQuery().sortable) {
-                    let $current = $(item)
-                    if ($current.data('ui-sortable')) {
-                        $current.sortable('destroy')
-                    }
-
-                    $current.sortable()
-                }
-            })
-        }
-    }
-
-    static getViewPort() {
-        let e = window,
-            a = 'inner'
-        if (!('innerWidth' in window)) {
-            a = 'client'
-            e = document.documentElement || document.body
-        }
-
-        return {
-            width: e[a + 'Width'],
-            height: e[a + 'Height'],
-        }
-    }
-
-    static initCodeEditor(id, type = 'css') {
-        const isObject = typeof id === 'object'
-        const editor = isObject ? $(id) : $(document).find('#' + id)
-        id = isObject ? id.id : id
-
-        if (isObject ? editor === undefined : !editor.length) {
-            return
-        }
-
-        editor.wrap(`<div id='wrapper_${id}'><div class='container_content_codemirror'></div> </div>`)
-
-        $(`#wrapper_${id}`).append(`<div class='handle-tool-drag' id='tool-drag_${id}'></div>`)
-
-        CodeMirror.fromTextArea(editor[0], {
-            extraKeys: { 'Ctrl-Space': 'autocomplete' },
-            lineNumbers: true,
-            mode: type,
-            autoRefresh: true,
-            lineWrapping: true,
-        })
-
-        $('.handle-tool-drag').mousedown((event) => {
-            let _self = $(event.currentTarget)
-            _self.attr('data-start_h', _self.parent().find('.CodeMirror').height()).attr('data-start_y', event.pageY)
-            $('body').attr('data-dragtool', _self.attr('id')).on('mousemove', Kern.onDragTool)
-            $(window).on('mouseup', Kern.onReleaseTool)
-        })
-    }
-
-    static onDragTool(e) {
-        let $element = $(`#${$('body').attr('data-dragtool')}`)
-        let startHeight = parseInt($element.attr('data-start_h'))
-
-        $element
-            .parent()
-            .find('.CodeMirror')
-            .css('height', Math.max(200, startHeight + e.pageY - $element.attr('data-start_y')))
-    }
-
-    static onReleaseTool() {
-        $('body').off('mousemove', Kern.onDragTool)
-        $(window).off('mouseup', Kern.onReleaseTool)
-    }
-
-    processAuthorize() {
-        $httpClient
-            .makeWithoutErrorHandler()
-            .post(KernVariables.authorize_url)
-            .catch(() => {})
-    }
-
-    countMenuItemNotifications() {
-        let $menuItems = $('.menu-item-count')
-        if ($menuItems.length) {
-            $httpClient
-                .make()
-                .get($menuItems.data('url') || KernVariables.menu_item_count_url)
-                .then(({ data }) => {
-                    data.data.map((x) => {
-                        if (x.value > 0) {
-                            $(`.menu-item-count.${x.key}`).text(x.value).show().removeClass('hidden')
-                        }
-                    })
-                })
-        }
+        document.dispatchEvent(new CustomEvent("core-init-resources"));
     }
 
     static initFieldCollapse() {
-        const parseValue = (value) => {
-            if (typeof value === 'string') {
-                try {
-                    return JSON.parse(value)
-                } catch (e) {
-                    return value
-                }
-            }
-            return value
-        }
-
-        const isEqual = (value1, value2) => String(value1) === String(value2)
-
-        const handleCheckbox = (target, isReverse, isChecked) => {
-            const targetElement = $(target)
-            isReverse
-                ? isChecked
-                    ? targetElement.slideUp()
-                    : targetElement.slideDown()
-                : isChecked
-                    ? targetElement.slideDown()
-                    : targetElement.slideUp()
-        }
-
-        const handleValueBasedCollapse = (target, value) => {
-            const targets = $(`${target}[data-bb-value]`)
-            targets.each((_, element) => {
-                const $element = $(element)
-                const bbValue = parseValue($element.data('bb-value'))
-                const shouldShow = Array.isArray(bbValue)
-                    ? bbValue.some((v) => isEqual(v, value))
-                    : isEqual(bbValue, value)
-                shouldShow ? $element.slideDown() : $element.slideUp()
-            })
-        }
-
-        const handleButtonCollapse = (target) => {
-            const targetElement = $(target)
-            if (targetElement.length) {
-                targetElement.slideToggle()
-            }
-        }
-
-        $(document).on('click change', '[data-bb-toggle="collapse"]', (e) => {
-            const $target = $(e.currentTarget)
-            const target = $target.data('bb-target')
-            const type = e.currentTarget.type
-
-            switch (type) {
-                case 'checkbox':
-                    handleCheckbox(target, $target.data('bb-reverse'), $target.prop('checked'))
-                    break
-                case 'radio':
-                case 'select-one':
-                    handleValueBasedCollapse(target, $target.val())
-                    break
-                case 'button':
-                    handleButtonCollapse(target)
-                    break
-                default:
-                    console.warn(`[Kern] Unknown type ${type} of collapse`)
-            }
-        })
-
-        const collapsibleTargets = {}
-        $(document)
-            .find('[data-bb-collapse]')
-            .each((_, element) => {
-                collapsibleTargets[$(element).data('bb-trigger')] = true
-            })
-
-        Object.keys(collapsibleTargets).forEach((target) => {
-            $(document).on('change', target, (e) => {
-                const $target = $(e.currentTarget)
-                const value = $target.val()
-                const targetSelector = `[data-bb-trigger="${target}"]`
-
-                $(targetSelector).slideUp()
-
-                if (e.currentTarget.type !== 'checkbox' || $target.is(':checked')) {
-                    handleValueBasedCollapse(targetSelector, value)
-                }
-            })
-        })
-    }
-
-    static initTreeCheckboxes() {
-        const handleChildren = function () {
-            const $checkbox = $(this)
-            const $checkboxChildren = $checkbox.parent().parent().find('ul input[type=checkbox]')
-
-            $checkboxChildren.each(function () {
-                if ($checkbox.prop('checked')) {
-                    $(this).prop('checked', true)
-                } else {
-                    $(this).prop('checked', false)
-                    $(this).prop('indeterminate', false)
-                }
-            })
-        }
-
-        const handleParents = function (current) {
-            const $parent = $(current).closest('ul').closest('li').find('> .form-check > input[type=checkbox]')
-            const $topParent = $parent.parent().parent()
-
-            if ($topParent.find('ul input[type=checkbox]:checked').length > 0) {
-                if (
-                    $topParent.find('ul input[type=checkbox]:checked').length ===
-                    $topParent.find('ul input[type=checkbox]').length
+        const update = (element, toggle = false) => {
+            for (const target of nodes(element.dataset.bbTarget)) {
+                let show;
+                if (element.type === "checkbox")
+                    show = parse(
+                        element.dataset.bbReverse,
+                        Boolean(element.dataset.bbReverse),
+                    )
+                        ? !element.checked
+                        : element.checked;
+                else if (
+                    element.type === "radio" ||
+                    element.tagName === "SELECT"
                 ) {
-                    $parent.prop('indeterminate', false)
-                    $parent.prop('checked', true)
-                } else {
-                    $parent.prop('indeterminate', true)
+                    if (element.type === "radio" && !element.checked) continue;
+                    const expected = parse(
+                        target.dataset.bbValue,
+                        target.dataset.bbValue,
+                    );
+                    show = (
+                        Array.isArray(expected) ? expected : [expected]
+                    ).some((value) => String(value) === element.value);
+                } else
+                    show = toggle
+                        ? target.hidden ||
+                          target.classList.contains("d-none") ||
+                          getComputedStyle(target).display === "none"
+                        : !target.hidden;
+                visible(target, show);
+                element.setAttribute("aria-expanded", String(show));
+            }
+        };
+        nodes('[data-bb-toggle="collapse"]').forEach((element) =>
+            update(element),
+        );
+        delegate("change", '[data-bb-toggle="collapse"]', (_event, element) =>
+            update(element),
+        );
+        delegate("click", '[data-bb-toggle="collapse"]', (event, element) => {
+            if (element.type === "button" || element.tagName === "A") {
+                event.preventDefault();
+                update(element, true);
+            }
+        });
+        for (const target of nodes("[data-bb-collapse][data-bb-trigger]")) {
+            for (const trigger of nodes(target.dataset.bbTrigger))
+                once(trigger, `collapse:${target.dataset.bbTrigger}`, () => {
+                    const refresh = () => {
+                        for (const item of nodes(
+                            "[data-bb-collapse][data-bb-trigger]",
+                        )) {
+                            if (
+                                item.dataset.bbTrigger !==
+                                target.dataset.bbTrigger
+                            )
+                                continue;
+                            const expected = parse(
+                                item.dataset.bbValue,
+                                item.dataset.bbValue,
+                            );
+                            visible(
+                                item,
+                                (trigger.type !== "checkbox" ||
+                                    trigger.checked) &&
+                                    (Array.isArray(expected)
+                                        ? expected
+                                        : [expected]
+                                    ).some(
+                                        (value) =>
+                                            String(value) === trigger.value,
+                                    ),
+                            );
+                        }
+                    };
+                    trigger.addEventListener("change", refresh);
+                    refresh();
+                });
+        }
+    }
+    static initTreeCheckboxes() {
+        const updateParent = (item) => {
+            let parent = item.closest("ul")?.closest("li");
+            while (parent) {
+                const checkbox = parent.querySelector(
+                    ':scope > .form-check input[type="checkbox"], :scope > label input[type="checkbox"]',
+                );
+                const children = Array.from(
+                    parent.querySelectorAll('ul input[type="checkbox"]'),
+                );
+                if (checkbox && children.length) {
+                    const checked = children.filter(
+                        (input) => input.checked,
+                    ).length;
+                    checkbox.checked = checked === children.length;
+                    checkbox.indeterminate =
+                        checked > 0 && checked < children.length;
                 }
-            } else {
-                $parent.prop('indeterminate', false)
-
-                if ($parent.prop('checked') || $topParent.find('ul input[type=checkbox]:checked').length > 0) {
-                    $parent.prop('checked', true)
-                } else {
-                    $parent.prop('checked', false)
-                }
+                parent = parent.parentElement?.closest("li");
             }
-
-            if ($parent.length > 0) {
-                handleParents($parent)
-            }
-        }
-
-        const target = '[data-bb-toggle="tree-checkboxes"] input[type="checkbox"]'
-
-        $(document).on('click', target, handleChildren)
-        $(document).on('click', target, function () {
-            handleParents(this)
-        })
-
-        $(document).ready(function () {
-            $(target).each(function () {
-                handleParents(this)
-            })
-        })
+        };
+        const selector =
+            '[data-bb-toggle="tree-checkboxes"] input[type="checkbox"]';
+        delegate("change", selector, (_event, input) => {
+            input
+                .closest("li")
+                ?.querySelectorAll('ul input[type="checkbox"]')
+                .forEach((child) => {
+                    child.checked = input.checked;
+                    child.indeterminate = false;
+                });
+            updateParent(input);
+        });
+        nodes(selector).reverse().forEach(updateParent);
     }
-
-    static initCodeEditorComponent() {
-        $(document)
-            .find('textarea[data-bb-code-editor]')
-            .each(function () {
-                if ($(this).next().hasClass('CodeMirror')) {
-                    return
-                }
-
-                Kern.initCodeEditor(this, this.dataset.mode || 'htmlmixed')
-            })
-    }
-
-    /**
-     * @param {HTMLElement} element
-     * @param {Boolean} overlay
-     * @param {String} position
-     */
-    static showButtonLoading(element, overlay = true, position = 'start') {
-        if (overlay && element) {
-            $(element).addClass('btn-loading').attr('disabled', true)
-
-            return
-        }
-
-        const loading = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>'
-        const icon = $(element).find('svg')
-
-        if (icon.length) {
-            icon.addClass('d-none')
-        }
-
-        if (position === 'start') {
-            $(element).prepend(loading)
-        } else if (position === 'end') {
-            $(element).append(loading)
-        }
-    }
-
-    static hideButtonLoading(element) {
-        if (!element) {
-            return
-        }
-
-        if ($(element).hasClass('btn-loading')) {
-            $(element).removeClass('btn-loading').removeAttr('disabled')
-
-            return
-        }
-
-        $(element).find('.spinner-border').remove()
-        $(element).find('svg').removeClass('d-none')
-    }
-
-    /**
-     * @param {HTMLElement} element
-     */
-    static showLoading(element = null) {
-        if (!element) {
-            element = document.querySelector('.page-wrapper')
-        }
-
-        if ($(element).find('.loading-spinner').length) {
-            return
-        }
-
-        $(element).addClass('position-relative')
-        $(element).append('<div class="loading-spinner"></div>')
-    }
-
-    static hideLoading(element = null) {
-        if (!element) {
-            element = document.querySelector('.page-wrapper')
-        }
-
-        $(element).removeClass('position-relative')
-        $(element).find('.loading-spinner').remove()
-    }
-
-    /**
-     * @param {HTMLElement} element
-     * @param {object} options
-     * @param {boolean} force
-     */
-    static select(element, options = {}, force = false) {
-        const $element = $(element)
-
-        if (!jQuery().select2 || ($element.hasClass('select2-hidden-accessible') && ! force)) {
-            return
-        }
-
-        options = {
-            width: '100%',
-            placeholder: $element.data('placeholder') || null,
-            allowClear: $element.data('allow-clear') || false,
-            ...options,
-        }
-
-        let parent = $element.closest('div[data-select2-dropdown-parent]') || $element.closest('.modal-content') || $element.closest('.modal')
-
-        if (parent.length) {
-            options.dropdownParent = parent
-            options.width = '100%'
-        }
-
-        $element.select2(options)
-    }
-
-    /**
-     * @param {String[]|HTMLElement} sources
-     * @return {FsLightbox}
-     */
-    static lightbox(sources) {
-        const lightbox = new FsLightbox()
-
-        if (Array.isArray(sources)) {
-            lightbox.props.sources = sources
-            lightbox.open()
-        }
-
-        return lightbox
-    }
-
-    static initLightbox() {
-        let instance = window.lightboxInstance || {}
-
-        const a = document.querySelectorAll('a[data-bb-lightbox]')
-
-        if (!a.length) {
-            return
-        }
-
-        a.forEach((element) => {
-            const instanceName = element.dataset.bbLightbox
-
-            if (!instance[instanceName]) {
-                instance[instanceName] = Kern.lightbox()
-            }
-
-            const source = element.href
-
-            instance[instanceName].props.sources.push(source)
-            instance[instanceName].elements.a.push(element)
-
-            const currentIndex = instance[instanceName].props.sources.length - 1
-
-            element.addEventListener('click', (e) => {
-                e.preventDefault()
-
-                instance[instanceName].open(currentIndex)
-            })
-        })
-
-        window.lightboxInstance = instance
-    }
-
-    static initColorPicker() {
-        if (!document.querySelector('[data-bb-color-picker]')) {
-            return
-        }
-
-        $('[data-bb-color-picker]').each((index, item) => {
-            let $current = $(item)
-
-            let options = {
-                allowEmpty: true,
-                color: $current.val() || 'rgb(51, 51, 51)',
-                showInput: true,
-                containerClassName: 'full-spectrum',
-                showInitial: true,
-                showSelectionPalette: false,
-                showPalette: true,
-                showAlpha: true,
-                preferredFormat: 'hex',
-                showButtons: false,
-                palette: [
-                    [
-                        'rgb(0, 0, 0)',
-                        'rgb(102, 102, 102)',
-                        'rgb(183, 183, 183)',
-                        'rgb(217, 217, 217)',
-                        'rgb(239, 239, 239)',
-                        'rgb(243, 243, 243)',
-                        'rgb(255, 255, 255)',
-                        'rgb(230, 184, 175)',
-                        'rgb(244, 204, 204)',
-                        'rgb(252, 229, 205)',
-                        'rgb(255, 242, 204)',
-                        'rgb(217, 234, 211)',
-                        'rgb(208, 224, 227)',
-                        'rgb(201, 218, 248)',
-                        'rgb(207, 226, 243)',
-                        'rgb(217, 210, 233)',
-                        'rgb(234, 209, 220)',
-                        'rgb(221, 126, 107)',
-                        'rgb(234, 153, 153)',
-                        'rgb(249, 203, 156)',
-                        'rgb(255, 229, 153)',
-                        'rgb(182, 215, 168)',
-                        'rgb(162, 196, 201)',
-                        'rgb(164, 194, 244)',
-                        'rgb(159, 197, 232)',
-                        'rgb(180, 167, 214)',
-                        'rgb(213, 166, 189)',
-                        'rgb(204, 65, 37)',
-                        'rgb(224, 102, 102)',
-                        'rgb(246, 178, 107)',
-                        'rgb(255, 217, 102)',
-                        'rgb(147, 196, 125)',
-                        'rgb(118, 165, 175)',
-                        'rgb(109, 158, 235)',
-                        'rgb(111, 168, 220)',
-                        'rgb(142, 124, 195)',
-                        'rgb(194, 123, 160)',
-                        'rgb(166, 28, 0)',
-                        'rgb(204, 0, 0)',
-                        'rgb(230, 145, 56)',
-                        'rgb(241, 194, 50)',
-                        'rgb(106, 168, 79)',
-                        'rgb(69, 129, 142)',
-                        'rgb(60, 120, 216)',
-                        'rgb(61, 133, 198)',
-                        'rgb(103, 78, 167)',
-                        'rgb(166, 77, 121)',
-                        'rgb(133, 32, 12)',
-                        'rgb(153, 0, 0)',
-                        'rgb(180, 95, 6)',
-                        'rgb(191, 144, 0)',
-                        'rgb(56, 118, 29)',
-                        'rgb(19, 79, 92)',
-                        'rgb(17, 85, 204)',
-                        'rgb(11, 83, 148)',
-                        'rgb(53, 28, 117)',
-                        'rgb(116, 27, 71)',
-                        'rgb(91, 15, 0)',
-                        'rgb(102, 0, 0)',
-                        'rgb(120, 63, 4)',
-                        'rgb(127, 96, 0)',
-                        'rgb(39, 78, 19)',
-                        'rgb(12, 52, 61)',
-                        'rgb(28, 69, 135)',
-                        'rgb(7, 55, 99)',
-                        'rgb(32, 18, 77)',
-                        'rgb(76, 17, 48)',
-                        'rgb(152, 0, 0)',
-                        'rgb(255, 0, 0)',
-                        'rgb(255, 153, 0)',
-                        'rgb(255, 255, 0)',
-                        'rgb(0, 255, 0)',
-                        'rgb(0, 255, 255)',
-                        'rgb(74, 134, 232)',
-                        'rgb(0, 0, 255)',
-                        'rgb(153, 0, 255)',
-                        'rgb(255, 0, 255)',
-                    ],
-                ],
-                change: (color) => {
-                    if (color) {
-                        $current.val(color.toRgbString())
-                    }
-                },
-            }
-
-            let parent = $current.closest('.modal')
-
-            if (parent.length) {
-                options.appendTo = parent
-            }
-
-            $current.spectrum(options)
-        })
-    }
-
-    static initClipboard() {
-        $(document).on('click', '[data-bb-toggle="clipboard"]', async (e) => {
-            e.preventDefault()
-
-            const target = $(e.currentTarget)
-            const copiedMessage = target.data('clipboard-message')
-            const action = target.data('clipboard-action') || 'copy'
-            const isCut = action.toLowerCase() === 'cut'
-            const iconClipboard = target.find('[data-clipboard-icon]')
-            const iconClipboardSuccess = target.find('[data-clipboard-success-icon]')
-            const clipboardParent = target.data('clipboard-parent')
-            const clipboardParentTarget = clipboardParent ? document.querySelector(clipboardParent) : undefined
-
-            let text = target.data('clipboard-text')
-
-            if (!text) {
-                const copyTarget = $(target.data('clipboard-target'))
-
-                if (copyTarget.length > 0) {
-                    text = copyTarget.val()
-
-                    isCut && copyTarget.val('')
-                }
-            }
-
-            await Kern.copyToClipboard(text, clipboardParentTarget)
-
-            if (copiedMessage) {
-                Kern.showSuccess(copiedMessage)
-            }
-
-            iconClipboard.addClass('d-none')
-            iconClipboardSuccess.removeClass('d-none')
-
-            setTimeout(() => {
-                iconClipboard.removeClass('d-none')
-                iconClipboardSuccess.addClass('d-none')
-            }, 1000)
-        })
-    }
-
-    static initTreeCategoriesSelect() {
-        const element = document.querySelector('[data-bb-toggle="tree-categories-select"]')
-
-        if (!element) {
-            return
-        }
-
-        Kern.select(element, {
-            render: {
-                option: (data) => {
-                    return `<div>${data.renderOption}</div>`
-                },
-                item: (data) => {
-                    return `<div>${data.renderItem}</div>`
-                },
-            },
-        })
-    }
-
     static initDropdownCheckboxes() {
-        const countCheckedDropdownCheckboxes = (e) => {
-            const $wrapper = e
-                ? $(e.currentTarget).closest('[data-bb-toggle="dropdown-checkboxes"]')
-                : $('[data-bb-toggle="dropdown-checkboxes"]')
-
-            if (Array.isArray($wrapper)) {
-                $wrapper.forEach((wrapper) => {
-                    countCheckedDropdownCheckboxes(wrapper)
-                })
-
-                return
-            }
-
-            const $checkedCheckboxes = $wrapper.find('input[type="checkbox"]:checked')
-            const $textElement = $wrapper.find('> span')
-
-            if ($checkedCheckboxes.length) {
-                if ($checkedCheckboxes.length > 3) {
-                    $textElement.text($checkedCheckboxes.length + ' ' + $wrapper.data('selected-text'))
-                } else {
-                    const values = []
-
-                    $checkedCheckboxes.each(function () {
-                        values.push($(this).siblings('.form-check-label').text().trim())
-                    })
-
-                    $textElement.text(values.join(', '))
-                }
-            } else {
-                if ($wrapper.length) {
-                    $.map($wrapper, function (item) {
-                        $(item).find('> span').text($(item).data('placeholder') || ' ')
-                    })
-                }
-            }
+        const refresh = (wrapper) => {
+            const selected = Array.from(
+                wrapper.querySelectorAll('input[type="checkbox"]:checked'),
+            );
+            const title = wrapper.querySelector(":scope > span");
+            if (title)
+                title.textContent =
+                    selected.length > 3
+                        ? `${selected.length} ${wrapper.dataset.selectedText ?? "selected"}`
+                        : selected
+                              .map(
+                                  (input) =>
+                                      input
+                                          .closest("label")
+                                          ?.textContent.trim() ?? input.value,
+                              )
+                              .join(", ") ||
+                          wrapper.dataset.placeholder ||
+                          " ";
+            const destination = wrapper.querySelector(
+                ".multi-checklist-selected",
+            );
+            if (!destination || !wrapper.dataset.name) return;
+            destination.replaceChildren(
+                ...selected.map((item) => {
+                    const input = document.createElement("input");
+                    input.type = "hidden";
+                    input.name = wrapper.dataset.name;
+                    input.value = item.value;
+                    return input;
+                }),
+            );
+        };
+        nodes('[data-bb-toggle="dropdown-checkboxes"]').forEach(refresh);
+        delegate(
+            "change",
+            '[data-bb-toggle="dropdown-checkboxes"] input[type="checkbox"]',
+            (_event, input) =>
+                refresh(
+                    input.closest('[data-bb-toggle="dropdown-checkboxes"]'),
+                ),
+        );
+        delegate(
+            "click",
+            '[data-bb-toggle="dropdown-checkboxes"] > span',
+            async (event, title) => {
+                event.stopPropagation();
+                const wrapper = title.parentElement;
+                visible(title, false);
+                const search = wrapper.querySelector(
+                    ':scope > input[type="text"]',
+                );
+                visible(search, true);
+                search?.focus();
+                wrapper.querySelector(".dropdown-menu")?.classList.add("show");
+                if (!wrapper.dataset.ajaxUrl || wrapper.dataset.kernLoaded)
+                    return;
+                const response = await request(wrapper.dataset.ajaxUrl);
+                const values = response.data ?? response;
+                const list = wrapper.querySelector("ul");
+                if (!list) return;
+                const selected = Array.from(
+                    wrapper.querySelectorAll(".multi-checklist-selected input"),
+                ).map((input) => input.value);
+                list.replaceChildren(
+                    ...Object.entries(values).map(([id, label]) => {
+                        const item = document.createElement("li"),
+                            control = document.createElement("label"),
+                            input = document.createElement("input");
+                        control.className = "form-check";
+                        input.type = "checkbox";
+                        input.className = "form-check-input";
+                        input.value = id;
+                        input.checked = selected.includes(id);
+                        control.append(
+                            input,
+                            text("span", String(label), "form-check-label"),
+                        );
+                        item.append(control);
+                        return item;
+                    }),
+                );
+                wrapper.dataset.kernLoaded = "1";
+                refresh(wrapper);
+            },
+        );
+        delegate(
+            "input",
+            '[data-bb-toggle="dropdown-checkboxes"] > input[type="text"]',
+            (_event, input) => {
+                input.parentElement
+                    .querySelectorAll("li")
+                    .forEach((item) =>
+                        visible(
+                            item,
+                            item.textContent
+                                .toLowerCase()
+                                .includes(input.value.trim().toLowerCase()),
+                        ),
+                    );
+            },
+        );
+        if (!listeners.has("close-dropdown-checkboxes")) {
+            listeners.add("close-dropdown-checkboxes");
+            document.addEventListener("click", (event) => {
+                if (
+                    event.target.closest(
+                        '[data-bb-toggle="dropdown-checkboxes"]',
+                    )
+                )
+                    return;
+                nodes('[data-bb-toggle="dropdown-checkboxes"]').forEach(
+                    (wrapper) => {
+                        wrapper
+                            .querySelector(".dropdown-menu")
+                            ?.classList.remove("show");
+                        visible(wrapper.querySelector(":scope > span"), true);
+                        visible(
+                            wrapper.querySelector(
+                                ':scope > input[type="text"]',
+                            ),
+                            false,
+                        );
+                    },
+                );
+            });
         }
-
-        countCheckedDropdownCheckboxes()
-
-        $(document).on('click', '[data-bb-toggle="dropdown-checkboxes"] input[type="checkbox"]', (e) => {
-            countCheckedDropdownCheckboxes(e)
-
-            const $wrapper = $(e.currentTarget).closest('[data-bb-toggle="dropdown-checkboxes"]')
-
-            const $selected = $wrapper.find('.multi-checklist-selected')
-
-            if ($(e.currentTarget).is(':checked')) {
-                const $input = `<input type="hidden" name="${$wrapper.data('name')}" value="${$(
-                    e.currentTarget
-                ).val()}">`
-                $selected.append($input)
-            } else {
-                const $input = $selected.find(`input[value="${$(e.currentTarget).val()}"]`)
-                $input.remove()
-            }
-        })
-
-        $(document).on('click', '[data-bb-toggle="dropdown-checkboxes"] > span', function (event) {
-            event.stopPropagation()
-
-            const $this = $(this)
-            const $input = $this.siblings('input[type="text"]')
-            const $dropdown = $this.siblings('.dropdown-menu')
-            const $wrapper = $this.closest('[data-bb-toggle="dropdown-checkboxes"]')
-
-            $dropdown.addClass('show')
-            $this.hide()
-            $input.show().trigger('focus')
-
-            if ($wrapper.data('ajax-url')) {
-                const template = `<li>
-                    <label class="form-check">
-                        <input type="checkbox" id="__id__" class="form-check-input" value="__value__">
-                        <span class="form-check-label">
-                            __label__
-                        </span>
-                    </label>
-                </li>`
-
-                const name = $wrapper.data('name')
-
-                $httpClient
-                    .make()
-                    .withLoading($dropdown)
-                    .get($wrapper.data('ajax-url'))
-                    .then(({ data }) => {
-                        let html = ''
-
-                        Object.keys(data).map((item) => {
-                            html += template
-                                .replace(/__id__/g, `${name}-${item}`)
-                                .replace(/__value__/g, item)
-                                .replace(/__label__/g, data[item])
-                        })
-
-                        $dropdown.find('ul').html(html)
-
-                        const $selected = $wrapper.find('.multi-checklist-selected')
-                        const $inputs = $selected.find('input[type="hidden"]')
-
-                        $inputs.each(function () {
-                            const $input = $(this)
-                            const $checkbox = $dropdown.find(`input[value="${$input.val()}"]`)
-                            $checkbox.prop('checked', true)
-                        })
-                    })
-            }
-        })
-
-        $(document).on('click', function (event) {
-            const $target = $(event.target)
-            const $wrapper = $('[data-bb-toggle="dropdown-checkboxes"]')
-
-            if (!$target.closest('[data-bb-toggle="dropdown-checkboxes"]').length) {
-                $wrapper.find('> .dropdown-menu').removeClass('show')
-                $wrapper.find('> span').show()
-                $wrapper.find('> input[type="text"]').val('').hide()
-
-                if ($wrapper.data('ajax-url')) {
-                    $wrapper.find('> .dropdown-menu ul').html('<div class="py-5"></div>')
-                }
-            }
-        })
-
-        $(document).on('keyup', '[data-bb-toggle="dropdown-checkboxes"] input[type="text"]', function () {
-            const $this = $(this)
-            const $wrapper = $this.closest('[data-bb-toggle="dropdown-checkboxes"]')
-            const $items = $wrapper.find('li')
-
-            const value = $this.val().trim().toLowerCase()
-
-            if (value.length) {
-                $items.hide()
-                $items.each(function () {
-                    const $item = $(this)
-                    const $label = $item.find('.form-check-label')
-
-                    if ($label.text().trim().toLowerCase().indexOf(value) !== -1) {
-                        $item.show()
+    }
+    static initGlobalResources() {
+        Kern.initFieldCollapse();
+        Kern.initTreeCheckboxes();
+        Kern.initClipboard();
+        Kern.initDropdownCheckboxes();
+        delegate("change", ".media-image-input", (_event, input) => {
+            const file = input.files?.[0];
+            if (!file) return;
+            const preview = input
+                .closest(".image-box")
+                ?.querySelector(".preview-image");
+            if (!preview) return;
+            const reader = new FileReader();
+            reader.addEventListener("load", () => {
+                preview.src = reader.result;
+                visible(preview, true);
+            });
+            reader.readAsDataURL(file);
+        });
+        delegate("click", ".media-select-file", (event, trigger) => {
+            event.preventDefault();
+            trigger
+                .closest(".attachment-wrapper")
+                ?.querySelector(".media-file-input")
+                ?.click();
+        });
+        delegate(
+            "change",
+            '.check-all, [data-bb-toggle="check-all"]',
+            (_event, trigger) => {
+                const control = trigger.matches("input")
+                    ? trigger
+                    : trigger.querySelector('input[type="checkbox"]');
+                if (!control) return;
+                nodes(
+                    trigger.dataset.bbTarget ??
+                        trigger.dataset.target ??
+                        trigger.dataset.set,
+                ).forEach((input) => {
+                    if (input !== control) {
+                        input.checked = control.checked;
+                        change(input);
                     }
-                })
-            } else {
-                $items.show()
-            }
-        })
+                });
+            },
+        );
     }
 
+    initGlobalModal() {
+        delegate("click", '[data-bb-toggle="modal"]', (event, trigger) => {
+            event.preventDefault();
+            const modal = document.getElementById(
+                `global-${trigger.dataset.type}-modal`,
+            );
+            if (!modal || !window.bootstrap?.Modal) return;
+            const body = modal.querySelector(".modal-body");
+            let title = modal.querySelector(".modal-title, .modal-body h3");
+            if (!title && body) {
+                title = text("h3", "");
+                body.append(title);
+            }
+            if (title)
+                title.textContent =
+                    trigger.querySelector(".modal-replace-title")
+                        ?.textContent ?? "";
+            let description = modal.querySelector(
+                ".modal-body .modal-description, .modal-body .text-secondary, .modal-body .text-muted",
+            );
+            if (!description && body) {
+                description = text("p", "", "modal-description text-muted");
+                body.append(description);
+            }
+            if (description)
+                description.textContent =
+                    trigger.querySelector(".modal-replace-description")
+                        ?.textContent ?? "";
+            const button = modal.querySelector(
+                ".confirm-trigger-single-action-button, .modal-footer button:not([data-bs-dismiss])",
+            );
+            const footer = modal.querySelector(".modal-footer");
+            visible(footer, parse(trigger.dataset.actionModal, false));
+            const cancel = footer?.querySelector('[data-bs-dismiss="modal"]');
+            if (cancel && trigger.dataset.cancelText)
+                cancel.textContent = trigger.dataset.cancelText;
+            if (button) {
+                button.textContent =
+                    trigger.dataset.confirmText ?? button.textContent;
+                button.onclick = async () => {
+                    Kern.showButtonLoading(button);
+                    try {
+                        await request(trigger.dataset.url, {
+                            method: trigger.dataset.method ?? "POST",
+                            data: parse(trigger.dataset.payload, {}),
+                        });
+                        window.bootstrap.Modal.getOrCreateInstance(
+                            modal,
+                        ).hide();
+                    } catch (error) {
+                        Kern.handleError(error);
+                    } finally {
+                        Kern.hideButtonLoading(button);
+                    }
+                };
+            }
+            window.bootstrap.Modal.getOrCreateInstance(modal).show();
+        });
+    }
+    manageSidebar() {
+        delegate("click", ".sidebar-toggle.d-none", (event) => {
+            event.preventDefault();
+            document.body.classList.toggle("sidebar-narrow");
+            document.body.classList.toggle("page-sidebar-closed");
+        });
+    }
+    static initNavbarMinimal() {
+        delegate(
+            "click",
+            '[data-bb-toggle="navbar-minimal"]',
+            async (event, trigger) => {
+                event.preventDefault();
+                const navbar = nodes(trigger.dataset.bbTarget)[0];
+                if (!navbar) return;
+                navbar.classList.toggle("navbar-minimal");
+                if (trigger.dataset.url)
+                    await request(trigger.dataset.url, {
+                        method: trigger.dataset.method ?? "POST",
+                        data: {
+                            minimal_sidebar: navbar.classList.contains(
+                                "navbar-minimal",
+                            )
+                                ? "yes"
+                                : "no",
+                        },
+                    });
+            },
+        );
+    }
+    handleWayPoint() {
+        const elements = nodes("[data-bb-waypoint]");
+        if (!window.IntersectionObserver) return;
+        const observer = new IntersectionObserver((entries) =>
+            entries.forEach((entry) =>
+                nodes(entry.target.dataset.bbTarget).forEach((target) =>
+                    visible(target, entry.isIntersecting),
+                ),
+            ),
+        );
+        elements.forEach((element) => observer.observe(element));
+    }
+    static handleCounterUp() {
+        for (const element of nodes('[data-counter="counterup"]'))
+            once(element, "counterup", () => {
+                const target = Number(element.textContent.replaceAll(",", ""));
+                if (
+                    !Number.isFinite(target) ||
+                    window.matchMedia?.("(prefers-reduced-motion: reduce)")
+                        .matches
+                )
+                    return;
+                const started = performance.now();
+                const animate = (now) => {
+                    const progress = Math.min(1, (now - started) / 700);
+                    element.textContent = Kern.numberFormat(
+                        target * (1 - (1 - progress) ** 3),
+                    );
+                    if (progress < 1) requestAnimationFrame(animate);
+                };
+                requestAnimationFrame(animate);
+            });
+    }
+    handleTurnOffDebugMode() {
+        delegate(
+            "click",
+            '#debug-mode-turn-off-confirmation-modal button[type="submit"]',
+            async (event, button) => {
+                event.preventDefault();
+                Kern.showButtonLoading(button);
+                try {
+                    const result = await request(
+                        button.dataset.url ?? button.form?.action,
+                        { method: "POST" },
+                    );
+                    Kern.showSuccess(result.message);
+                    window.bootstrap?.Modal?.getInstance(
+                        button.closest(".modal"),
+                    )?.hide();
+                } finally {
+                    Kern.hideButtonLoading(button);
+                }
+            },
+        );
+    }
+    async processAuthorize() {
+        try {
+            await request(variables().authorize_url, { method: "POST" });
+        } catch {}
+    }
+    async countMenuItemNotifications() {
+        const items = nodes(".menu-item-count");
+        const url = items[0]?.dataset.url ?? variables().menu_item_count_url;
+        if (!items.length || !url) return;
+        try {
+            const response = await request(url);
+            for (const item of response.data ?? [])
+                for (const element of items.filter((element) =>
+                    element.classList.contains(String(item.key)),
+                )) {
+                    element.textContent = String(item.value);
+                    visible(element, Number(item.value) > 0);
+                }
+        } catch (error) {
+            Kern.handleError(error);
+        }
+    }
+
+    static lightbox(sources) {
+        if (!window.FsLightbox) return null;
+        const instance = new window.FsLightbox();
+        if (Array.isArray(sources)) {
+            instance.props.sources = sources;
+            instance.open();
+        }
+        return instance;
+    }
+    static initLightbox() {
+        const groups = (window.lightboxInstance ??= {});
+        for (const element of nodes("a[data-bb-lightbox]"))
+            once(element, "lightbox", () => {
+                const name = element.dataset.bbLightbox;
+                const instance = (groups[name] ??= Kern.lightbox());
+                if (!instance) return;
+                const index = instance.props.sources.push(element.href) - 1;
+                element.addEventListener("click", (event) => {
+                    event.preventDefault();
+                    instance.open(index);
+                });
+            });
+    }
+
+    static openMediaUsing(callback, options = {}) {
+        const dialog = document.createElement("dialog");
+        dialog.className = "rounded border p-4";
+        dialog.setAttribute(
+            "aria-label",
+            variables().languages?.select_media ?? "Choose media",
+        );
+        const form = document.createElement("form");
+        const label = text(
+            "label",
+            variables().languages?.image_url ?? "Image URL",
+        );
+        const input = document.createElement("input");
+        input.type = "url";
+        input.required = true;
+        input.className = "form-control my-3";
+        input.setAttribute("aria-label", label.textContent);
+        label.append(input);
+        const save = text(
+            "button",
+            variables().languages?.select ?? "Select",
+            "btn btn-primary",
+        );
+        save.type = "submit";
+        const cancel = text(
+            "button",
+            variables().languages?.cancel ?? "Cancel",
+            "btn btn-secondary ms-2",
+        );
+        cancel.type = "button";
+        const close = () => {
+            dialog.close();
+            dialog.remove();
+        };
+        cancel.addEventListener("click", close);
+        dialog.addEventListener("cancel", () => dialog.remove(), {
+            once: true,
+        });
+        form.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const url = new URL(input.value, window.location.href);
+            if (!["https:", "http:"].includes(url.protocol)) return;
+            callback([{ url: url.href, full_url: url.href, thumb: url.href }]);
+            close();
+        });
+        const uploadUrl =
+            options.uploadUrl ?? window.RV_MEDIA_URL?.media_upload_from_editor;
+        if (uploadUrl) {
+            const upload = document.createElement("input");
+            upload.type = "file";
+            upload.accept = "image/*";
+            upload.multiple = Boolean(options.multiple);
+            upload.setAttribute(
+                "aria-label",
+                variables().languages?.upload ?? "Upload images",
+            );
+            upload.addEventListener("change", async () => {
+                Kern.showButtonLoading(save);
+                const files = [];
+                try {
+                    for (const file of upload.files ?? []) {
+                        const data = new FormData();
+                        data.append("upload", file);
+                        const response = await request(uploadUrl, {
+                            method: "POST",
+                            data,
+                        });
+                        const result = response.data ?? response;
+                        const url = result.url ?? result.file?.url;
+                        if (!url)
+                            throw new Error(
+                                "The upload did not return an image URL.",
+                            );
+                        files.push({
+                            ...result,
+                            url,
+                            full_url: result.full_url ?? url,
+                            thumb: result.thumb ?? url,
+                        });
+                    }
+                    if (files.length) {
+                        callback(files);
+                        close();
+                    }
+                } catch (error) {
+                    Kern.handleError(error);
+                } finally {
+                    Kern.hideButtonLoading(save);
+                }
+            });
+            form.append(upload);
+        }
+        form.prepend(label);
+        form.append(save, cancel);
+        dialog.append(form);
+        document.body.append(dialog);
+        dialog.showModal();
+        input.focus();
+    }
+    static handleOpenMedia(item) {
+        item?.click();
+    }
+    static initMediaIntegrate() {
+        const refreshGallery = (list) => {
+            const wrapper = list.closest(".list-images");
+            const hasImages = Boolean(
+                list.querySelector(".gallery-image-item-handler"),
+            );
+            visible(list, hasImages);
+            visible(
+                wrapper?.querySelector(".default-placeholder-gallery-image"),
+                !hasImages,
+            );
+            visible(wrapper?.querySelector(".footer-action"), hasImages);
+        };
+        const addImage = (list, file) => {
+            const item = text(
+                "div",
+                "",
+                "col-lg-2 col-md-3 col-4 gallery-image-item-handler mb-2",
+            );
+            const box = text("div", "", "custom-image-box image-box");
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.className = "image-data";
+            input.name = list.dataset.name;
+            input.value = file.url;
+            const preview = document.createElement("img");
+            preview.className = "preview-image w-100";
+            preview.src = file.full_url ?? file.url;
+            preview.alt = "";
+            const edit = text(
+                "button",
+                variables().languages?.edit ?? "Edit image",
+                "btn btn-sm",
+            );
+            edit.type = "button";
+            edit.dataset.bbToggle = "image-picker-edit";
+            const remove = text(
+                "button",
+                variables().languages?.remove ?? "Remove image",
+                "btn btn-sm",
+            );
+            remove.type = "button";
+            remove.dataset.bbToggle = "image-picker-remove";
+            box.append(input, preview, edit, remove);
+            item.append(box);
+            list.append(item);
+            change(input);
+            Kern.initGalleryOrdering(list);
+            refreshGallery(list);
+        };
+        nodes(".list-gallery-media-images").forEach((list) =>
+            Kern.initGalleryOrdering(list),
+        );
+        delegate(
+            "click",
+            '[data-bb-toggle="gallery-add"], [data-bb-toggle="image-picker-edit"]',
+            (event, trigger) => {
+                event.preventDefault();
+                const list = trigger
+                    .closest(".gallery-images-wrapper")
+                    ?.querySelector(".list-gallery-media-images");
+                if (!list) return;
+                Kern.openMediaUsing(
+                    (files) => {
+                        const item = trigger.closest(
+                            ".gallery-image-item-handler",
+                        );
+                        const [first, ...remaining] = files;
+                        if (item && first) {
+                            const input = item.querySelector(".image-data"),
+                                preview = item.querySelector(".preview-image");
+                            if (input) {
+                                input.value = first.url;
+                                change(input);
+                            }
+                            if (preview)
+                                preview.src = first.full_url ?? first.url;
+                            remaining.forEach((file) => addImage(list, file));
+                        } else files.forEach((file) => addImage(list, file));
+                        refreshGallery(list);
+                    },
+                    { multiple: true, uploadUrl: trigger.dataset.uploadUrl },
+                );
+            },
+        );
+        delegate(
+            "click",
+            '[data-bb-toggle="image-picker-choose"]',
+            (event, trigger) => {
+                event.preventDefault();
+                const box = trigger.closest(".image-box");
+                if (trigger.dataset.target === "direct") {
+                    box?.querySelector(".media-image-input")?.click();
+                    return;
+                }
+                Kern.openMediaUsing(
+                    (files) => {
+                        const file = files[0],
+                            input = box?.querySelector(".image-data"),
+                            preview = box?.querySelector(".preview-image");
+                        if (input) {
+                            input.value = file.url;
+                            change(input);
+                        }
+                        if (preview) {
+                            preview.src = file.full_url ?? file.url;
+                            preview.classList.remove("default-image");
+                            visible(preview, true);
+                        }
+                        visible(
+                            box?.querySelector(
+                                '[data-bb-toggle="image-picker-remove"]',
+                            ),
+                            true,
+                        );
+                        document.dispatchEvent(
+                            new CustomEvent("core-insert-media", {
+                                detail: { files, element: trigger },
+                            }),
+                        );
+                    },
+                    { uploadUrl: trigger.dataset.uploadUrl },
+                );
+            },
+        );
+        delegate(
+            "click",
+            '[data-bb-toggle="image-picker-remove"]',
+            (event, trigger) => {
+                event.preventDefault();
+                const galleryItem = trigger.closest(
+                    ".gallery-image-item-handler",
+                );
+                if (galleryItem) {
+                    const list = galleryItem.closest(".list-images");
+                    galleryItem.remove();
+                    if (!list?.querySelector(".gallery-image-item-handler")) {
+                        visible(
+                            list?.querySelector(
+                                ".default-placeholder-gallery-image",
+                            ),
+                            true,
+                        );
+                        visible(list?.querySelector(".footer-action"), false);
+                    }
+                    return;
+                }
+                const box = trigger.closest(".image-box"),
+                    input = box?.querySelector(".image-data"),
+                    preview = box?.querySelector(".preview-image");
+                if (input) {
+                    input.value = "";
+                    change(input);
+                }
+                if (preview) {
+                    preview.src = preview.dataset.default ?? "";
+                    preview.classList.add("default-image");
+                }
+                visible(trigger, false);
+            },
+        );
+        delegate(
+            "click",
+            '[data-bb-toggle="media-file-remove"]',
+            (event, trigger) => {
+                event.preventDefault();
+                const wrapper = trigger.closest(".attachment-wrapper"),
+                    input = wrapper?.querySelector(".attachment-url");
+                if (input) {
+                    input.value = "";
+                    change(input);
+                }
+                visible(wrapper?.querySelector(".attachment-details"), false);
+                visible(trigger, false);
+            },
+        );
+        delegate(
+            "click",
+            '[data-bb-toggle="gallery-reset"]',
+            (event, trigger) => {
+                event.preventDefault();
+                const list = trigger.closest(".list-images");
+                list?.querySelectorAll(".gallery-image-item-handler").forEach(
+                    (item) => item.remove(),
+                );
+                visible(
+                    list?.querySelector(".default-placeholder-gallery-image"),
+                    true,
+                );
+                visible(list?.querySelector(".footer-action"), false);
+            },
+        );
+    }
+    static initGalleryOrdering(list) {
+        for (const item of list.querySelectorAll(".gallery-image-item-handler"))
+            once(item, "gallery-order", () => {
+                const controls = text("div", "", "d-flex gap-1");
+                for (const [direction, caption] of [
+                    [-1, "Move image earlier"],
+                    [1, "Move image later"],
+                ]) {
+                    const button = text(
+                        "button",
+                        direction < 0 ? "←" : "→",
+                        "btn btn-sm",
+                    );
+                    button.type = "button";
+                    button.setAttribute("aria-label", caption);
+                    button.addEventListener("click", () => {
+                        const sibling =
+                            direction < 0
+                                ? item.previousElementSibling
+                                : item.nextElementSibling;
+                        if (!sibling) return;
+                        direction < 0
+                            ? sibling.before(item)
+                            : sibling.after(item);
+                        change(item.querySelector(".image-data"));
+                    });
+                    controls.append(button);
+                }
+                item.append(controls);
+            });
+    }
     static initEditable() {
-        const $element = $('.editable')
-
-        if (!$element.length) {
-            return
-        }
-
-        $element.editable({
-            mode: 'inline',
-            success: function (response) {
-                if (response.error && response.message) {
-                    Kern.showError(response.message)
-                }
-            },
-            error: function (response) {
-                Kern.handleError(response)
-            },
-        })
+        nodes(".editable").forEach((element) =>
+            once(element, "editable", () => {
+                element.setAttribute("tabindex", "0");
+                element.addEventListener("click", () => {
+                    if (element.querySelector("input")) return;
+                    const input = document.createElement("input"),
+                        previous = element.textContent;
+                    input.value = element.dataset.value ?? previous;
+                    input.setAttribute(
+                        "aria-label",
+                        element.dataset.title ??
+                            element.getAttribute("aria-label") ??
+                            previous,
+                    );
+                    element.replaceChildren(input);
+                    input.focus();
+                    const save = async () => {
+                        if (input.value === previous) {
+                            element.textContent = previous;
+                            return;
+                        }
+                        try {
+                            await request(element.dataset.url, {
+                                method: "POST",
+                                data: {
+                                    name: element.dataset.name,
+                                    pk: element.dataset.pk,
+                                    value: input.value,
+                                },
+                            });
+                            element.dataset.value = input.value;
+                            element.textContent = input.value;
+                        } catch (error) {
+                            element.textContent = previous;
+                            Kern.handleError(error);
+                        }
+                    };
+                    input.addEventListener("keydown", (event) => {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            input.blur();
+                        }
+                        if (event.key === "Escape") {
+                            input.value = previous;
+                            input.blur();
+                        }
+                    });
+                    input.addEventListener("blur", save, { once: true });
+                });
+                element.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter" && event.target === element)
+                        element.click();
+                });
+            }),
+        );
     }
-
-    static unmaskInputNumber($form, formData) {
-        if (jQuery().inputmask) {
-            $form.find('input.input-mask-number').map(function (i, e) {
-                const $input = $(e)
-                if ($input.inputmask) {
-                    if (Array.isArray(formData)) {
-                        formData[$input.attr('name')] = $input.inputmask('unmaskedvalue')
-                    } else {
-                        formData.append($input.attr('name'), $input.inputmask('unmaskedvalue'))
-                    }
+    static unmaskInputNumber(form, data) {
+        const values = new Map();
+        for (const input of nodes(
+            "input.input-mask-number",
+            nodes(form)[0] ?? document,
+        )) {
+            const separator = input.dataset.thousandsSeparator ?? ",";
+            if (!input.name || input.disabled || input.matches?.(":disabled"))
+                continue;
+            const decimal = input.dataset.decimalSeparator || ".";
+            const value = input.value
+                .split(separator)
+                .join("")
+                .replace(decimal, ".");
+            if (data instanceof FormData) {
+                if (!values.has(input.name))
+                    values.set(input.name, {
+                        entries: data.getAll(input.name),
+                        updated: new Set(),
+                    });
+                const group = values.get(input.name);
+                const index = group.entries.findIndex(
+                    (entry, index) =>
+                        !group.updated.has(index) && entry === input.value,
+                );
+                if (index >= 0) {
+                    group.entries[index] = value;
+                    group.updated.add(index);
                 }
-            })
-
-            return formData
+            } else data[input.name] = value;
         }
+        if (data instanceof FormData) {
+            for (const [name, group] of values) {
+                data.delete(name);
+                for (const value of group.entries) data.append(name, value);
+            }
+        }
+        return data;
     }
 }
 
-$(() => {
-    $.ajaxSetup({
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
-        },
-    })
-
-    new Kern()
-    window.Kern = Kern
-})
+window.Kern = Kern;
+if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", () => new Kern(), {
+        once: true,
+    });
+else new Kern();

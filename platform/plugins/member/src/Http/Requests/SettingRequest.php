@@ -14,6 +14,8 @@ class SettingRequest extends Request
             'last_name' => ['required', 'string', 'max:120'],
             'phone' => ['nullable', new PhoneNumberRule],
             'dob' => ['nullable', 'date', 'max:20'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'gender' => ['nullable', 'in:male,female,other'],
         ];
     }
 }

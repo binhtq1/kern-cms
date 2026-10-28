@@ -1,119 +1,92 @@
+const controllers = new WeakMap()
 class CropImage {
-    modal = $(document).find('.crop-image-modal')
-    image = this.modal.find('.cropper-image')
-    cropper = null
-
-    constructor() {
-        this.modal
-            .on('change', 'input[type="file"]', (e) => {
-                const files = e.target.files
-                let reader
-                let file
-
-                if (files && files.length > 0) {
-                    file = files[0]
-
-                    if (URL) {
-                        this.image.prop('src', URL.createObjectURL(file))
-                    } else if (FileReader) {
-                        reader = new FileReader()
-                        reader.onload = () => {
-                            this.image.prop('src', reader.result)
-                        }
-                        reader.readAsDataURL(file)
-                    }
-                }
-
-                this.init()
-            })
-            .on('click', 'button[type="submit"]', (e) => {
-                e.preventDefault()
-
-                const button = $(e.currentTarget)
-                const form = this.modal.find('form')
-
-                const canvas = this.cropper.getCroppedCanvas({
-                    width: 160,
-                    height: 160,
-                })
-
-                canvas.toBlob((blob) => {
-                    const formData = new FormData()
-
-                    formData.append(form.find('input[type="file"]').prop('name'), blob)
-
-                    $httpClient
-                        .make()
-                        .withButtonLoading(button)
-                        .post(form.prop('action'), formData)
-                        .then(({ data }) => {
-                            this.updateImage(data.data.url)
-
-                            Kern.showSuccess(data.message)
-                            this.modal.modal('hide')
-                        })
-                })
-            })
-            .on('shown.bs.modal', (e) => {
-                const originalImage = $(e.relatedTarget).closest('.crop-image-container').find('.crop-image-original')
-
-                const image = new Image()
-                image.src = originalImage.prop('src')
-                image.onload = () => {
-                    this.image.prop('src', image.src)
-                    this.init()
-                }
-            })
-            .on('hidden.bs.modal', () => {
-                this.destroy()
-            })
-
-        $(document).on('click', '[data-bb-toggle="delete-avatar"]', (e) => {
-            e.preventDefault()
-
-            const button = $(e.currentTarget)
-
-            $httpClient
-                .make()
-                .post(button.prop('href'))
-                .then(({ data }) => {
-                    this.updateImage(data.data.url)
-
-                    Kern.showSuccess(data.message)
-                    this.modal.modal('hide')
-                })
-        })
-    }
-
-    init() {
-        this.cropper && this.cropper.destroy()
-
-        this.cropper = new Cropper(this.image[0], {
-            aspectRatio: 1,
-            preview: '.img-preview',
-        })
-    }
-
-    destroy() {
-        this.cropper.destroy()
+    constructor(modal) {
+        this.modal = modal
+        this.image = modal.querySelector('.cropper-image')
         this.cropper = null
-        this.image.prop('src', '')
-        this.modal.find('input[type="file"]').val('')
+        this.url = null
+        modal.addEventListener('change', (event) => {
+            if (!event.target.matches('input[type="file"]') || !event.target.files?.[0]) return
+            if (this.url) URL.revokeObjectURL(this.url)
+            this.url = URL.createObjectURL(event.target.files[0])
+            this.load(this.url)
+        })
+        modal.addEventListener('shown.bs.modal', (event) => {
+            const source = event.relatedTarget?.closest('.crop-image-container')?.querySelector('.crop-image-original')?.src
+            if (source) this.load(source)
+        })
+        modal.addEventListener('hidden.bs.modal', () => this.destroy())
+        modal.addEventListener('click', (event) => {
+            const button = event.target.closest('button[type="submit"]')
+            if (!button) return
+            event.preventDefault()
+            this.save(button)
+        })
     }
-
+    load(source) {
+        if (!this.image) return
+        this.cropper?.destroy()
+        this.cropper = null
+        this.image.onload = () => {
+            if (window.Cropper) this.cropper = new Cropper(this.image, { aspectRatio: 1, preview: '.img-preview' })
+        }
+        this.image.src = source
+    }
+    async save(button) {
+        const form = this.modal.querySelector('form')
+        const file = form?.querySelector('input[type="file"]')
+        if (!this.cropper || !file || button.disabled) return
+        const canvas = this.cropper.getCroppedCanvas({ width: 160, height: 160 })
+        button.disabled = true
+        try {
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve))
+            if (!blob) throw new Error('Could not crop this image.')
+            const data = new FormData(form)
+            data.set(file.name, blob, 'avatar.png')
+            const response = await fetch(form.action, { method: 'POST', body: data, credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' } })
+            const result = await response.json()
+            if (!response.ok || result.error) throw new Error(result.message || response.statusText)
+            this.updateImage(result.data.url)
+            window.Kern?.showSuccess(result.message)
+            window.bootstrap?.Modal.getInstance(this.modal)?.hide()
+        } catch (error) { window.Kern?.showError(error.message) }
+        finally { button.disabled = false }
+    }
     updateImage(url) {
-        $(document)
-            .find('.crop-image-original')
-            .each((i, el) => {
-                if ($(el).is('img')) {
-                    $(el).prop('src', url)
-                } else {
-                    $(el).css('background-image', `url(${url})`)
-                }
-            })
+        document.querySelectorAll('.crop-image-original').forEach((element) => {
+            if (element instanceof HTMLImageElement) element.src = url
+            else element.style.backgroundImage = `url(${JSON.stringify(url)})`
+        })
+    }
+    destroy() {
+        this.cropper?.destroy()
+        this.cropper = null
+        if (this.url) URL.revokeObjectURL(this.url)
+        this.url = null
+        if (this.image) { this.image.onload = null; this.image.removeAttribute('src') }
+        this.modal.querySelectorAll('input[type="file"]').forEach((input) => { input.value = '' })
     }
 }
-
-$(() => {
-    new CropImage()
+function initialize() {
+    document.querySelectorAll('.crop-image-modal').forEach((modal) => {
+        if (!controllers.has(modal)) controllers.set(modal, new CropImage(modal))
+    })
+}
+document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-bb-toggle="delete-avatar"]')
+    if (!button) return
+    event.preventDefault()
+    try {
+        const response = await fetch(button.href, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '' } })
+        const result = await response.json()
+        if (!response.ok || result.error) throw new Error(result.message || response.statusText)
+        document.querySelectorAll('.crop-image-original').forEach((element) => {
+            if (element instanceof HTMLImageElement) element.src = result.data.url
+            else element.style.backgroundImage = `url(${JSON.stringify(result.data.url)})`
+        })
+        window.Kern?.showSuccess(result.message)
+    } catch (error) { window.Kern?.showError(error.message) }
 })
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true })
+else initialize()
+document.addEventListener('core-init-resources', initialize)

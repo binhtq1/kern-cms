@@ -4,7 +4,7 @@
 
 @push('footer')
     <script>
-        $(document).ready(function() {
+        document.addEventListener('DOMContentLoaded', function() {
             (new ApexCharts(document.querySelector("#{{ $id }}"), {{ Js::from($options) }})).render()
         })
     </script>

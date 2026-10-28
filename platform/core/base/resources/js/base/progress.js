@@ -1,11 +1,11 @@
-import NProgress from 'nprogress/nprogress'
+import NProgress from "nprogress/nprogress";
 
 /**
  * @param {string} color
  * @returns {void}
  */
 function injectCSS(color) {
-    const element = document.createElement('style')
+    const element = document.createElement("style");
     element.textContent = `
         #nprogress {
           pointer-events: none;
@@ -77,11 +77,9 @@ function injectCSS(color) {
           0%   { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
-    `
-    document.head.appendChild(element)
+    `;
+    document.head.appendChild(element);
 }
-
-injectCSS('#007bff')
 
 /**
  * @param {number} delay
@@ -92,19 +90,43 @@ injectCSS('#007bff')
  */
 export default function setupProgress({
     delay = 250,
-    color = 'var(--primary)',
+    color = "var(--primary)",
     includeCSS = true,
     showSpinner = false,
 } = {}) {
-    $(document).on('ajaxSend', () => NProgress.inc(delay))
-    $(document).on('ajaxStop', () => NProgress.done())
+    let active = 0;
+    let timer = null;
+    const start = () => {
+        active++;
+        if (active === 1) timer = setTimeout(() => NProgress.start(), delay);
+    };
+    const finish = () => {
+        active = Math.max(0, active - 1);
+        if (active > 0) return;
+        clearTimeout(timer);
+        timer = null;
+        NProgress.done();
+    };
 
-    $httpClient.beforeSend(() => NProgress.inc(delay))
-    $httpClient.completed(() => NProgress.done())
-
-    NProgress.configure({ showSpinner })
-
-    if (includeCSS) {
-        injectCSS(color)
+    window.$httpClient?.beforeSend(start);
+    window.$httpClient?.completed(finish);
+    if (window.axios) {
+        window.axios.interceptors.request.use((config) => {
+            start();
+            return config;
+        });
+        window.axios.interceptors.response.use(
+            (response) => {
+                finish();
+                return response;
+            },
+            (error) => {
+                finish();
+                return Promise.reject(error);
+            },
+        );
     }
+
+    NProgress.configure({ showSpinner });
+    if (includeCSS) injectCSS(color);
 }

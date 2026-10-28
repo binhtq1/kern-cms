@@ -164,8 +164,7 @@ class Base
 
     public function renderChart(): string
     {
-        Assets::addStyles(['morris'])
-            ->addScripts(['morris', 'raphael']);
+        Assets::addStyles('apexchart')->addScripts('apexchart');
 
         $chart = $this;
 

@@ -114,7 +114,7 @@ class CKEditorUploadAdapter {
         // Prepare form data.
         const data = new FormData()
         data.append('upload', file)
-        data.append('_token', $('meta[name="csrf-token"]').attr('content')) // laravel token
+        data.append('_token', document.querySelector('meta[name="csrf-token"]')?.content || '') // laravel token
 
         // Send request.
         this.xhr.send(data)

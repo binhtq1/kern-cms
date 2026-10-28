@@ -7,9 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-use Kern\ACL\Models\User;
+use Inertia\Inertia;
 use Kern\Base\Enums\BaseStatusEnum;
-use Kern\Base\Facades\Assets;
 use Kern\Base\Http\Controllers\BaseController;
 use Kern\Blog\Models\Post;
 use Kern\Media\Chunks\Exceptions\UploadMissingFileException;
@@ -17,7 +16,6 @@ use Kern\Media\Chunks\Handler\DropZoneUploadHandler;
 use Kern\Media\Chunks\Receiver\FileReceiver;
 use Kern\Media\Facades\RvMedia;
 use Kern\Media\Models\MediaFile;
-use Kern\Member\Forms\Fronts\ChangePasswordForm;
 use Kern\Member\Forms\Fronts\ProfileForm;
 use Kern\Member\Http\Requests\AvatarRequest;
 use Kern\Member\Http\Requests\SettingRequest;
@@ -86,32 +84,31 @@ class PublicController extends BaseController
 
         $this->pageTitle(__('Dashboard'));
 
-        Assets::addStylesDirectly('vendor/core/plugins/member/css/dashboard/activity-logs.css')
-            ->addScriptsDirectly('vendor/core/plugins/member/js/dashboard/activity-logs.js');
-
-        Assets::usingVueJS();
-
-        return view('plugins/member::themes.dashboard.index', compact('user'));
+        return Inertia::render('Dashboard', [
+            'statistics' => is_plugin_active('blog') ? collect([
+                BaseStatusEnum::PUBLISHED => trans('plugins/blog::member.published_posts'),
+                BaseStatusEnum::PENDING => trans('plugins/blog::member.pending_posts'),
+                BaseStatusEnum::DRAFT => trans('plugins/blog::member.draft_posts'),
+            ])->map(fn (string $label, string $status): array => [
+                'label' => $label,
+                'count' => $user->posts()->where('status', $status)->count(),
+            ])->values()->all() : [],
+            'extraStatistics' => apply_filters(MEMBER_TOP_STATISTIC_FILTER, null),
+        ]);
     }
 
     public function getSettings()
     {
-        $this->pageTitle(__('Account settings'));
-
-        /**
-         * @var User $user
-         */
         $user = auth('member')->user();
 
-        Assets::addScripts('form-validation');
-
-        $profileForm = ProfileForm::createFromModel($user)->renderForm();
-        $changePasswordForm = ChangePasswordForm::create()->renderForm();
-
-        return view(
-            'plugins/member::themes.dashboard.settings.index',
-            compact('user', 'profileForm', 'changePasswordForm')
-        );
+        return Inertia::render('Settings', [
+            'profile' => [
+                ...$user->only(['first_name', 'last_name', 'phone', 'description', 'gender']),
+                'dob' => $user->dob?->format('Y-m-d') ?: '',
+            ],
+            'extensionTabs' => apply_filters('member_settings_register_content_tabs', null),
+            'extensionContent' => apply_filters('member_settings_register_content_tab_inside', null),
+        ]);
     }
 
     public function postSettings(SettingRequest $request)
@@ -195,6 +192,26 @@ class PublicController extends BaseController
             ->httpResponse()
             ->setData(ActivityLogResource::collection($activities))
             ->toApiResponse();
+    }
+
+    public function postPickerUpload(Request $request)
+    {
+        $request->validate(['file' => RvMedia::imageValidationRule()]);
+        $result = RvMedia::handleUpload($request->file('file'), 0, $request->user('member')->upload_folder);
+        if ($result['error']) {
+            return $this->httpResponse()->setError()->setMessage($result['message']);
+        }
+
+        $file = $result['data'];
+
+        return $this->httpResponse()->setData([
+            'id' => (string) $file->getKey(),
+            'name' => $file->name,
+            'url' => $file->url,
+            'src' => RvMedia::url($file->url),
+            'mime_type' => $file->mime_type,
+            'type' => 'image',
+        ]);
     }
 
     public function postUpload(Request $request)

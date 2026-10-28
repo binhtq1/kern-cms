@@ -5,6 +5,7 @@ namespace Kern\Table\Abstracts;
 use Closure;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Contracts\Routing\UrlGenerator;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -263,6 +264,19 @@ abstract class TableAbstract extends DataTable implements ExtensibleContract
             ->columns($this->getColumns())
             ->ajax(['url' => $this->getAjaxUrl(), 'method' => 'POST'])
             ->parameters($parameters);
+    }
+
+    public function nativeOptions(): array
+    {
+        return [
+            'url' => $this->getAjaxUrl(),
+            'columns' => array_values(array_map(fn ($column) => $column instanceof Arrayable ? $column->toArray() : (array) $column, $this->getColumns())),
+            'order' => $this->useDefaultSorting ? $this->getDefaultSorting() : [],
+            'pageLength' => $this->pageLength,
+            'empty' => trans('core/base::tables.no_data'),
+            'next' => trans('pagination.next'),
+            'previous' => trans('pagination.previous'),
+        ];
     }
 
     public function getDefaultSorting(): array
@@ -623,42 +637,7 @@ abstract class TableAbstract extends DataTable implements ExtensibleContract
 
     public function htmlDrawCallbackFunction(): ?string
     {
-        return <<<'JS'
-            var tableWrapper = $(this).closest(".dataTables_wrapper");
-            var dtDataCount = this.api().data().count();
-            var pageInfo = this.api().page.info();
-            var searchValue = this.api().search();
-
-            if (dtDataCount === 0) {
-                tableWrapper.find(".card-footer").prop('style', 'display: none !important;');
-            } else {
-                tableWrapper.find(".card-footer").prop('style', null);
-            }
-
-            tableWrapper.find(".dataTables_paginate").toggle(pageInfo.pages > 1);
-
-            tableWrapper.find(".dataTables_length").toggle(pageInfo.recordsDisplay >= 10);
-            tableWrapper.find(".dataTables_info").toggle(dtDataCount > 0);
-
-            setTimeout(function () {
-                var searchInputWrapper = tableWrapper.closest(".table-wrapper").find(".table-search-input input");
-                if (! searchInputWrapper.val()) {
-                    searchInputWrapper.val(searchValue);
-                }
-
-                if (searchInputWrapper.val()) {
-                    searchInputWrapper.addClass('border-primary bg-info-subtle')
-
-                    searchInputWrapper.closest('label').find('.search-reset-icon').show()
-                    searchInputWrapper.closest('label').find('.search-icon').hide()
-                } else {
-                    searchInputWrapper.removeClass('border-primary bg-info-subtle')
-
-                    searchInputWrapper.closest('label').find('.search-reset-icon').hide()
-                    searchInputWrapper.closest('label').find('.search-icon').show()
-                }
-            }, 200);
-        JS.$this->htmlInitCompleteFunction();
+        return $this->htmlInitCompleteFunction();
     }
 
     public function renderTable(array $data = [], array $mergeData = []): View|Factory|Response
@@ -668,19 +647,13 @@ abstract class TableAbstract extends DataTable implements ExtensibleContract
 
     public function render(?string $view = null, array $data = [], array $mergeData = [])
     {
-        Assets::addScripts(['datatables', 'moment', 'datepicker'])
-            ->addStyles(['datatables', 'datepicker'])
+        Assets::addScripts('datepicker')
+            ->addStyles('datepicker')
             ->addStylesDirectly('vendor/core/core/table/css/table.css')
             ->addScriptsDirectly([
-                'vendor/core/core/base/libraries/bootstrap3-typeahead.min.js',
                 'vendor/core/core/table/js/table.js',
                 'vendor/core/core/table/js/filter.js',
             ]);
-
-        if (setting('datatables_pagination_type') == 'dropdown') {
-            Assets::addScriptsDirectly(['vendor/core/core/base/libraries/datatables/extensions/Pagination/js/dataTables.pagination.min.js'])
-                ->addStylesDirectly(['vendor/core/core/base/libraries/datatables/extensions/Pagination/css/dataTables.pagination.min.css']);
-        }
 
         $data['id'] = Arr::get($data, 'id', $this->getOption('id'));
         $data['class'] = Arr::get($data, 'class', $this->getOption('class'));

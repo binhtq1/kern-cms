@@ -1,58 +1,31 @@
-$(() => {
-    const htmlUnescapes = {
-        '&amp;': '&',
-        '&lt;': '<',
-        '&gt;': '>',
-        '&quot;': '"',
-        '&#39;': "'",
+const unescape = (value) => {
+    const textarea = document.createElement('textarea')
+    textarea.innerHTML = value
+    return textarea.value
+}
+document.addEventListener('click', (event) => {
+    const add = event.target.closest('[data-target="repeater-add"]')
+    const remove = event.target.closest('[data-target="repeater-remove"]')
+    if (!add && !remove) return
+    event.preventDefault()
+    if (remove) {
+        document.querySelectorAll('[data-id]').forEach((row) => {
+            if (row.dataset.id === remove.dataset.id) row.remove()
+        })
+        return
     }
-    const unescapeHtmlChar = basePropertyOf(htmlUnescapes)
-    const reEscapedHtml = /&(?:amp|lt|gt|quot|#39);/g
-    const reHasEscapedHtml = RegExp(reEscapedHtml.source)
-
-    function basePropertyOf(object) {
-        return function (key) {
-            return object == null ? undefined : object[key]
-        }
-    }
-
-    function unescape(string) {
-        string = string.toString()
-
-        return string && reHasEscapedHtml.test(string) ? string.replace(reEscapedHtml, unescapeHtmlChar) : string
-    }
-
-    $(document).on('click', '[data-target="repeater-add"]', function () {
-        const id = $(this).data('id')
-        const $group = $(`#${id}_group`)
-        const $template = $(`#${id}_template`)
-        const $fields = $(`#${id}_fields`)
-
-        let nextIndex = parseInt($group.data('nextIndex'))
-        let content = $template.html()
-        let fields = $fields.text()
-        content = content.replace(/__key__/g, nextIndex)
-        fields = fields.replace(/__key__/g, nextIndex)
-        content = content.replace(/__fields__/g, unescape(fields))
-
-        $group.append(content)
-
-        $group.data('nextIndex', nextIndex + 1)
-
-        if (window.Kern) {
-            window.Kern.initResources()
-            window.Kern.initMediaIntegrate()
-            window.Kern.initCoreIcon()
-        }
-
-        if (window.EditorManagement) {
-            window.EDITOR = new EditorManagement().init()
-        }
-    })
-
-    $(document).on('click', '[data-target="repeater-remove"]', function () {
-        const id = $(this).data('id')
-
-        $(`[data-id="${id}"]`).remove()
-    })
+    const id = add.dataset.id
+    const group = document.getElementById(`${id}_group`)
+    const template = document.getElementById(`${id}_template`)
+    const fields = document.getElementById(`${id}_fields`)
+    if (!group || !template || !fields) return
+    const index = Number(group.dataset.nextIndex || 0)
+    const content = template.innerHTML.replaceAll('__key__', index).replaceAll('__fields__', unescape(fields.textContent.replaceAll('__key__', index)))
+    group.insertAdjacentHTML('beforeend', content)
+    group.dataset.nextIndex = String(index + 1)
+    window.Kern?.initResources()
+    window.Kern?.initMediaIntegrate()
+    window.Kern?.initCoreIcon()
+    window.EDITOR?.init()
+    group.dispatchEvent(new Event('change', { bubbles: true }))
 })
