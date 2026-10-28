@@ -19,7 +19,7 @@
 @push('footer')
     @if (Session::has('success_msg') || Session::has('error_msg') || (isset($errors) && $errors->any()) || isset($error_msg))
         <script type="text/javascript">
-            $(function() {
+            document.addEventListener('DOMContentLoaded', function() {
                 @if (Session::has('success_msg'))
                     Kern.showSuccess('{!! BaseHelper::cleanToastMessage(session('success_msg')) !!}');
                 @endif

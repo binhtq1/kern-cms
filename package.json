@@ -24,13 +24,13 @@
         "build:theme": "node scripts/theme-vite.mjs build",
         "build:themes": "node scripts/theme-vite.mjs build",
         "test:themes": "node --test tests/ThemeVite.test.mjs",
-        "test:assets": "node --test tests/PublicAssets.test.mjs",
+        "test:assets": "node --test tests/PublicAssets.test.mjs tests/NoJQuery.test.mjs tests/Native*.test.mjs",
         "dev:public": "node scripts/public-assets.mjs --watch",
         "watch:public": "node scripts/public-assets.mjs --watch",
         "build:public": "npm run build:themes && npm run build:assets",
         "build:assets": "node scripts/public-assets.mjs",
         "typecheck:admin": "tsc --noEmit -p tsconfig.json",
-        "lint:admin": "eslint resources/js/admin.tsx \"platform/**/resources/js/admin/**/*.{ts,tsx}\" --max-warnings=0 && prettier --check resources/js/admin.tsx \"platform/**/resources/js/admin/**/*.{ts,tsx,mjs,json}\" \"platform/**/resources/css/admin.css\" vite.config.ts tsconfig.json components.json",
+        "lint:admin": "eslint resources/js/admin.tsx resources/js/member.tsx \"platform/plugins/member/resources/js/account/**/*.{ts,tsx}\" \"platform/**/resources/js/admin/**/*.{ts,tsx}\" --max-warnings=0 && prettier --check resources/js/admin.tsx resources/js/member.tsx \"platform/plugins/member/resources/js/account/**/*.{ts,tsx}\" \"platform/**/resources/js/admin/**/*.{ts,tsx,mjs,json}\" \"platform/**/resources/css/admin.css\" vite.config.ts tsconfig.json components.json",
         "test:admin": "node --test --test-reporter=spec \"platform/**/resources/js/admin/**/*.test.mjs\""
     },
     "devDependencies": {
@@ -81,7 +81,6 @@
         "clsx": "^2.1.1",
         "cropperjs": "^1.6.2",
         "epic-spinners": "^2.0.0",
-        "jquery": "^3.7.1",
         "lodash": "^4.17.21",
         "lucide-react": "^1.57.0",
         "react": "^19.3.1",

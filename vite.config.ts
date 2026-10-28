@@ -3,7 +3,7 @@ import laravel from "laravel-vite-plugin";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { globSync } from "glob";
 import {
@@ -66,7 +66,15 @@ export default defineConfig({
             },
         },
         laravel({
-            input: ["resources/js/admin.tsx"],
+            input: [
+                "resources/js/admin.tsx",
+                ...(existsSync("resources/js/member.tsx") &&
+                existsSync(
+                    "platform/plugins/member/resources/js/account/Dashboard.tsx",
+                )
+                    ? ["resources/js/member.tsx"]
+                    : []),
+            ],
             buildDirectory: "build/admin",
             hotFile: "public/admin.hot",
             refresh: ["platform/**/resources/views/admin/**"],

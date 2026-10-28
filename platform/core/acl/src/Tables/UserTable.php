@@ -36,7 +36,7 @@ class UserTable extends TableAbstract
 {
     public function setup(): void
     {
-        Assets::addScripts(['bootstrap-editable', 'jquery-ui'])
+        Assets::addScripts('sortable')
             ->addStyles(['bootstrap-editable']);
 
         $this

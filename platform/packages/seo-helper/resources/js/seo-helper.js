@@ -1,78 +1,21 @@
-class SEOHelperManagement {
-    constructor() {
-        this.$document = $(document)
-    }
-
-    static updateSEOTitle(value) {
-        if (value) {
-            if (!$('#seo_title').val()) {
-                $('.page-title-seo').text(value)
-            }
-            $('.default-seo-description').addClass('hidden')
-            $('.existed-seo-meta').removeClass('hidden')
-        } else {
-            $('.default-seo-description').removeClass('hidden')
-            $('.existed-seo-meta').addClass('hidden')
-        }
-    }
-
-    static updateSEODescription(value) {
-        if (value) {
-            if (!$('#seo_description').val()) {
-                $('.page-description-seo').text(value)
-            }
-        }
-    }
-
-    handleMetaBox() {
-        let permalink = this.$document.find('#sample-permalink a')
-
-        if (permalink.length) {
-            $('.page-url-seo p').text(permalink.prop('href').replace('?preview=true', ''))
-        }
-
-        this.$document.on('click', '.btn-trigger-show-seo-detail', (event) => {
-            event.preventDefault()
-            $('.seo-edit-section').toggleClass('hidden')
-        })
-
-        this.$document.on('keyup', 'input[name=name]', (event) => {
-            SEOHelperManagement.updateSEOTitle($(event.currentTarget).val())
-        })
-
-        this.$document.on('keyup', 'input[name=title]', (event) => {
-            SEOHelperManagement.updateSEOTitle($(event.currentTarget).val())
-        })
-
-        this.$document.on('keyup', 'textarea[name=description]', (event) => {
-            SEOHelperManagement.updateSEODescription($(event.currentTarget).val())
-        })
-
-        this.$document.on('keyup', '#seo_title', (event) => {
-            if ($(event.currentTarget).val()) {
-                $('.page-title-seo').text($(event.currentTarget).val())
-                $('.default-seo-description').addClass('hidden')
-                $('.existed-seo-meta').removeClass('hidden')
-            } else {
-                let $inputName = $('input[name=name]')
-                if ($inputName.val()) {
-                    $('.page-title-seo').text($inputName.val())
-                } else {
-                    $('.page-title-seo').text($('input[name=title]').val())
-                }
-            }
-        })
-
-        this.$document.on('keyup', '#seo_description', (event) => {
-            if ($(event.currentTarget).val()) {
-                $('.page-description-seo').text($(event.currentTarget).val())
-            } else {
-                $('.page-description-seo').text($('textarea[name=description]').val())
-            }
-        })
-    }
+const setText = (selector, value) => document.querySelectorAll(selector).forEach((element) => { element.textContent = value })
+const value = (selector) => document.querySelector(selector)?.value || ''
+function update() {
+    const title = value('#seo_title') || value('input[name="name"]') || value('input[name="title"]')
+    setText('.page-title-seo', title)
+    setText('.page-description-seo', value('#seo_description') || value('textarea[name="description"]'))
+    document.querySelectorAll('.default-seo-description').forEach((element) => element.classList.toggle('hidden', Boolean(title)))
+    document.querySelectorAll('.existed-seo-meta').forEach((element) => element.classList.toggle('hidden', !title))
+    const permalink = document.querySelector('#sample-permalink a')
+    if (permalink) setText('.page-url-seo p', permalink.href.replace('?preview=true', ''))
 }
-
-$(() => {
-    new SEOHelperManagement().handleMetaBox()
+document.addEventListener('input', (event) => {
+    if (event.target.matches('input[name="name"], input[name="title"], textarea[name="description"], #seo_title, #seo_description')) update()
 })
+document.addEventListener('click', (event) => {
+    if (!event.target.closest('.btn-trigger-show-seo-detail')) return
+    event.preventDefault()
+    document.querySelectorAll('.seo-edit-section').forEach((element) => element.classList.toggle('hidden'))
+})
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', update, { once: true })
+else update()

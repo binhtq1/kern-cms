@@ -1,1 +1,1 @@
-(function(){"use strict";$(()=>{$.each($(".html-diff-content"),function(n,t){$(t).html(htmldiff($(t).data("original"),$(t).html()))})})})();
+(function(){"use strict";function t(){typeof window.htmldiff=="function"&&document.querySelectorAll(".html-diff-content").forEach(n=>{n.innerHTML=window.htmldiff(n.dataset.original||"",n.innerHTML)})}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",t,{once:!0}):t()})();

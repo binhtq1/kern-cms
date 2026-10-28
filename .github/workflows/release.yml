@@ -45,6 +45,7 @@ jobs:
           npm ci --no-audit
           node --test tests/ReleasePackage.test.mjs tests/CorePackage.test.mjs
           npm run build
+          npm run test:assets
           bash scripts/build-release.sh "$RELEASE_VERSION" "$RUNNER_TEMP/kern-release" "$RUNNER_TEMP/kern-artifacts"
       - name: Verify new installations and upgrade from the published 0.1.0
         run: bash scripts/test-release.sh "$RELEASE_VERSION" "$RUNNER_TEMP/kern-artifacts"

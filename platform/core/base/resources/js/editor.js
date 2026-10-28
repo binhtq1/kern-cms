@@ -46,16 +46,16 @@ class EditorManagement {
         }
 
         const ckfinder = editor.commands.get('ckfinder')
-        const btnGalleries = $(`#${element}`).parent().find('.btn_gallery[data-action="media-insert-ckeditor"]')
+        const btnGalleries = document.getElementById(element)?.parentElement?.querySelector('.btn_gallery[data-action="media-insert-ckeditor"]')
 
-        if (ckfinder && btnGalleries.length) {
-            ckfinder.execute = () => btnGalleries.trigger('click')
-        } else {
+        if (ckfinder && btnGalleries) {
+            ckfinder.execute = () => btnGalleries.click()
+        } else if (ckfinder) {
             ckfinder.execute = () => Kern.showError('Not available.')
         }
     }
     initCkEditor(element, extraConfig) {
-        if (this.CKEDITOR[element] || !$('#' + element).is(':visible')) {
+        if (this.CKEDITOR[element] || !document.getElementById(element)?.getClientRects().length) {
             return false
         }
 
@@ -220,10 +220,11 @@ class EditorManagement {
 
                 this.CKEDITOR[element] = editor
 
-                const minHeight = $('#' + element).prop('rows') * 90
+                const minHeight = (document.getElementById(element)?.rows || 4) * 90
                 const className = `ckeditor-${element}-inline`
 
-                $(editor.ui.view.editable.element).addClass(className).after(`
+                editor.ui.view.editable.element.classList.add(className)
+                editor.ui.view.editable.element.insertAdjacentHTML('afterend', `
                     <style>
                         .ck-editor__editable_inline {
                             min-height: ${minHeight - 100}px;
@@ -246,7 +247,7 @@ class EditorManagement {
                     editor.execute('shortcode', `[media url="${url}"][/media]`)
                 }
 
-                await this.ckEditorInitialUsing(editor)
+                for (const callback of this.ckEditorInitialCallbacks) await callback(editor)
 
                 await this.ckFinderInitial(editor, element)
             })
@@ -297,7 +298,7 @@ class EditorManagement {
         let options = {
             menubar: true,
             selector: `#${element}`,
-            min_height: $(`#${element}`).prop('rows') * 110,
+            min_height: (document.getElementById(element)?.rows || 4) * 110,
             resize: 'vertical',
             plugins:
                 'code autolink advlist visualchars link image media table charmap hr pagebreak nonbreaking anchor insertdatetime lists wordcount imagetools visualblocks',
@@ -316,13 +317,15 @@ class EditorManagement {
             file_picker_types: 'file image media',
             images_upload_handler: this.uploadImageFromEditor.bind(this),
             file_picker_callback: (callback) => {
-                let $input = $('<input type="file" accept="image/*" />').click()
-
-                $input.on('change', (e) => {
-                    this.uploadImageFromEditor(e.target.files[0], callback)
-                })
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.accept = 'image/*'
+                input.addEventListener('change', () => {
+                    if (input.files?.[0]) this.uploadImageFromEditor(input.files[0], callback)
+                }, { once: true })
+                input.click()
             },
-            directionality: $('body').prop('dir') || 'ltr',
+            directionality: document.body.dir || document.documentElement.dir || 'ltr',
         }
 
         if (localStorage.getItem('themeMode') === 'dark') {
@@ -337,68 +340,44 @@ class EditorManagement {
         await this.tinyMceInitial(tinymceInstance)
     }
 
-    initEditor(element, extraConfig, type) {
-        if (!element.length) {
-            return false
-        }
-
-        let current = this
-        switch (type) {
-            case 'ckeditor':
-                $.each(element, (index, item) => {
-                    current.initCkEditor($(item).prop('id'), extraConfig)
-                })
-                break
-            case 'tinymce':
-                $.each(element, (index, item) => {
-                    current.initTinyMce($(item).prop('id'))
-                })
-                break
+    initEditor(elements, extraConfig, type) {
+        for (const element of elements) {
+            if (type === 'ckeditor') this.initCkEditor(element.id, extraConfig)
+            else if (type === 'tinymce' && !window.tinymce?.get(element.id)) this.initTinyMce(element.id)
         }
     }
 
     init() {
-        let $ckEditor = $(document).find('.editor-ckeditor')
-        let $tinyMce = $(document).find('.editor-tinymce')
-        let current = this
-        if ($ckEditor.length > 0) {
-            current.initEditor($ckEditor, {}, 'ckeditor')
-        }
-
-        if ($tinyMce.length > 0) {
-            current.initEditor($tinyMce, {}, 'tinymce')
-        }
-
-        $(document).off('click', '.show-hide-editor-btn').on('click', '.show-hide-editor-btn', (event) => {
-            event.preventDefault()
-            const editorInstance = $(event.currentTarget).data('result')
-
-            let $result = $('#' + editorInstance)
-
-            if ($result.hasClass('editor-ckeditor')) {
-                const $editorActionItem = $('.editor-action-item')
-                if (this.CKEDITOR[editorInstance] && typeof this.CKEDITOR[editorInstance] !== 'undefined') {
-                    this.CKEDITOR[editorInstance].destroy()
-                    this.CKEDITOR[editorInstance] = null
-                    $editorActionItem.not('.action-show-hide-editor').hide()
-                } else {
-                    current.initCkEditor(editorInstance, {}, 'ckeditor')
-                    $editorActionItem.not('.action-show-hide-editor').show()
-                }
-            } else if ($result.hasClass('editor-tinymce')) {
-                tinymce.execCommand('mceToggleEditor', false, editorInstance)
-            }
-        })
-
+        this.initEditor(document.querySelectorAll('.editor-ckeditor'), {}, 'ckeditor')
+        this.initEditor(document.querySelectorAll('.editor-tinymce'), {}, 'tinymce')
         return this
     }
 }
 
-$(() => {
-    window.EDITOR = new EditorManagement().init()
-    window.EditorManagement = window.EditorManagement || EditorManagement
-
-    $(document).on('shown.bs.modal', function () {
-        window.EDITOR.init()
+const initialize = () => {
+    window.EDITOR ||= new EditorManagement()
+    window.EditorManagement ||= EditorManagement
+    window.EDITOR.init()
+    document.addEventListener('shown.bs.modal', () => window.EDITOR.init())
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('.show-hide-editor-btn')
+        if (!button) return
+        event.preventDefault()
+        const id = button.dataset.result
+        const textarea = document.getElementById(id)
+        if (!textarea) return
+        if (textarea.classList.contains('editor-ckeditor')) {
+            const instance = window.EDITOR.CKEDITOR[id]
+            if (instance) {
+                instance.updateSourceElement()
+                await instance.destroy()
+                delete window.EDITOR.CKEDITOR[id]
+            } else window.EDITOR.initCkEditor(id, {})
+            document.querySelectorAll('.editor-action-item:not(.action-show-hide-editor)').forEach((action) => {
+                action.hidden = Boolean(instance)
+            })
+        } else if (textarea.classList.contains('editor-tinymce')) window.tinymce?.execCommand('mceToggleEditor', false, id)
     })
-})
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true })
+else initialize()

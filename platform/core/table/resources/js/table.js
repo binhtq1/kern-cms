@@ -1,918 +1,241 @@
-;(($, DataTable) => {
-    'use strict'
-
-    let _buildParams = (dt, action) => {
-        let params = dt.ajax.params()
-        params.action = action
-        params._token = $('meta[name="csrf-token"]').attr('content')
-
+const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content || ''
+const tables = new Map()
+window.KernTables = tables
+const readValue = (row, path) => String(path || '').split('.').reduce((value, key) => value?.[key], row)
+class NativeTable {
+    constructor(table, options) {
+        this.element = table
+        this.wrapper = table.closest('.table-wrapper') || table.parentElement
+        this.options = options
+        this.start = 0
+        this.length = Number(options.pageLength || 10)
+        this.search = ''
+        this.order = options.order?.[0] || null
+        this.draw = 0
+        this.controller = null
+        const footer = document.createElement('div')
+        footer.className = 'card-footer d-flex align-items-center justify-content-between gap-2 flex-wrap'
+        const length = document.createElement('select')
+        length.className = 'form-select w-auto'
+        length.setAttribute('aria-label', 'Rows per page')
+        for (const count of [...new Set([this.length, 10, 30, 50, 100, 500])].sort((a, b) => a - b)) length.add(new Option(String(count), String(count)))
+        length.add(new Option(window.KernVariables?.languages?.tables?.all || 'All', '-1'))
+        length.value = String(this.length)
+        length.addEventListener('change', () => { this.length = Number(length.value); this.start = 0; this.load() })
+        this.previous = document.createElement('button')
+        this.previous.type = 'button'
+        this.previous.className = 'btn'
+        this.previous.textContent = options.previous || 'Previous'
+        this.previous.addEventListener('click', () => { this.start = Math.max(0, this.start - this.length); this.load() })
+        this.next = document.createElement('button')
+        this.next.type = 'button'
+        this.next.className = 'btn'
+        this.next.textContent = options.next || 'Next'
+        this.next.addEventListener('click', () => { this.start += this.length; this.load() })
+        this.status = document.createElement('span')
+        this.status.setAttribute('role', 'status')
+        footer.append(length, this.previous, this.status, this.next)
+        this.wrapper.append(footer)
+        table.querySelectorAll('thead th').forEach((heading, index) => {
+            const column = options.columns[index]
+            if (!column) return
+            heading.hidden = column.visible === false
+            if (column.orderable === false) return
+            const button = document.createElement('button')
+            button.type = 'button'
+            button.className = 'btn btn-link p-0 text-reset'
+            button.textContent = heading.textContent
+            heading.replaceChildren(button)
+            button.addEventListener('click', () => {
+                this.order = [index, this.order?.[0] === index && this.order?.[1] === 'asc' ? 'desc' : 'asc']
+                this.start = 0
+                this.load()
+            })
+        })
+        this.wrapper.addEventListener('input', (event) => {
+            if (!event.target.matches('.table-search-input input')) return
+            clearTimeout(this.timer)
+            this.timer = setTimeout(() => { this.search = event.target.value; this.start = 0; this.load() }, 250)
+        })
+        this.wrapper.addEventListener('change', (event) => {
+            if (event.target.matches('.table-check-all')) table.querySelectorAll('.checkboxes').forEach((checkbox) => { checkbox.checked = event.target.checked })
+            if (event.target.matches('.table-check-all, .checkboxes')) this.updateSelection()
+        })
+        this.wrapper.addEventListener('click', (event) => this.action(event))
+        this.load()
+    }
+    params() {
+        const params = new URLSearchParams(new URL(this.options.url, location.href).search)
+        for (const key of Array.from(params.keys())) if (key.startsWith('filter_')) params.delete(key)
+        for (const [key, value] of new URLSearchParams(location.search)) if (key.startsWith('filter_')) params.append(key, value)
+        params.set('draw', String(++this.draw))
+        params.set('start', String(this.start))
+        params.set('length', String(this.length))
+        params.set('search[value]', this.search)
+        params.set('search[regex]', 'false')
+        if (this.order) {
+            params.set('order[0][column]', String(this.order[0]))
+            params.set('order[0][dir]', this.order[1])
+        }
+        params.set('_token', csrf())
+        this.options.columns.forEach((column, index) => {
+            for (const key of ['data', 'name', 'orderable', 'searchable']) params.set(`columns[${index}][${key}]`, String(column[key] ?? (key === 'data' || key === 'name' ? '' : true)))
+            params.set(`columns[${index}][search][value]`, '')
+            params.set(`columns[${index}][search][regex]`, 'false')
+        })
         return params
     }
-
-    let _downloadFromUrl = function (url, params) {
-        let postUrl = url + '/export'
-        let xhr = new XMLHttpRequest()
-        xhr.open('POST', postUrl, true)
-        xhr.responseType = 'arraybuffer'
-        xhr.onload = function () {
-            if (this.status === 200) {
-                let filename = ''
-                let disposition = xhr.getResponseHeader('Content-Disposition')
-                if (disposition && disposition.indexOf('attachment') !== -1) {
-                    let filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/
-                    let matches = filenameRegex.exec(disposition)
-                    if (matches != null && matches[1]) filename = matches[1].replace(/['"]/g, '')
-                }
-                let type = xhr.getResponseHeader('Content-Type')
-
-                let blob = new Blob([this.response], { type: type })
-                if (typeof window.navigator.msSaveBlob !== 'undefined') {
-                    // IE workaround for "HTML7007: One or more blob URLs were revoked by closing the blob for which they were created. These URLs will no longer resolve as the data backing the URL has been freed."
-                    window.navigator.msSaveBlob(blob, filename)
-                } else {
-                    let URL = window.URL || window.webkitURL
-                    let downloadUrl = URL.createObjectURL(blob)
-
-                    if (filename) {
-                        // use HTML5 a[download] attribute to specify filename
-                        let a = document.createElement('a')
-                        // safari doesn't support this yet
-                        if (typeof a.download === 'undefined') {
-                            window.location = downloadUrl
-                        } else {
-                            a.href = downloadUrl
-                            a.download = filename
-                            document.body.appendChild(a)
-                            a.click()
-                        }
-                    } else {
-                        window.location = downloadUrl
-                    }
-
-                    setTimeout(() => {
-                        URL.revokeObjectURL(downloadUrl)
-                    }, 100) // cleanup
+    async load() {
+        this.controller?.abort()
+        const controller = new AbortController()
+        this.controller = controller
+        this.element.setAttribute('aria-busy', 'true')
+        try {
+            const url = new URL(this.options.url, location.href)
+            for (const key of Array.from(url.searchParams.keys())) if (key.startsWith('filter_')) url.searchParams.delete(key)
+            const response = await fetch(url, { method: 'POST', body: this.params(), signal: controller.signal, credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() } })
+            const result = await response.json()
+            if (!response.ok || result.error) throw new Error(result.message || response.statusText)
+            if (controller.signal.aborted) return
+            const body = this.element.tBodies[0] || this.element.createTBody()
+            body.replaceChildren()
+            for (const row of result.data || []) {
+                const tr = body.insertRow()
+                for (const column of this.options.columns) {
+                    const td = tr.insertCell()
+                    td.hidden = column.visible === false
+                    td.className = column.className || ''
+                    // The endpoint escapes normal values and explicitly renders formatted columns as HTML.
+                    td.innerHTML = String(readValue(row, column.data) ?? '')
                 }
             }
-        }
-        xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded')
-        xhr.send($.param(params))
-    }
-
-    let _buildUrl = (dt, action) => {
-        let url = dt.ajax.url() || ''
-        let params = dt.ajax.params()
-        params.action = action
-
-        if (url.indexOf('?') > -1) {
-            return url + '&' + $.param(params)
-        }
-
-        return url + '?' + $.param(params)
-    }
-
-    DataTable.ext.buttons.excel = {
-        className: 'buttons-excel',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                    <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
-                    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
-                    <path d="M8 11h8v7h-8z"></path>
-                    <path d="M8 15h8"></path>
-                    <path d="M11 11v7"></path>
-                </svg>
-            ${dt.i18n(
-                'buttons.excel',
-                KernVariables.languages.tables.excel ? KernVariables.languages.tables.excel : 'Excel'
-            )}`
-        },
-
-        action: (e, dt) => {
-            window.location = _buildUrl(dt, 'excel')
-        },
-    }
-
-    DataTable.ext.buttons.postExcel = {
-        className: 'buttons-excel',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
-                <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"></path>
-                <path d="M8 11h8v7h-8z"></path>
-                <path d="M8 15h8"></path>
-                <path d="M11 11v7"></path>
-            </svg>
-            ${dt.i18n(
-                'buttons.excel',
-                KernVariables.languages.tables.excel ? KernVariables.languages.tables.excel : 'Excel'
-            )}`
-        },
-
-        action: (e, dt) => {
-            let url = dt.ajax.url() || window.location.href
-            let params = _buildParams(dt, 'excel')
-
-            _downloadFromUrl(url, params)
-        },
-    }
-
-    DataTable.ext.buttons.export = {
-        extend: 'collection',
-
-        className: 'buttons-export',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
-                <path d="M7 11l5 5l5 -5"></path>
-                <path d="M12 4l0 12"></path>
-            </svg>
-            ${dt.i18n(
-                'buttons.export',
-                KernVariables.languages.tables.export ? KernVariables.languages.tables.export : 'Export'
-            )}`
-        },
-
-        buttons: ['csv', 'excel'],
-    }
-
-    DataTable.ext.buttons.csv = {
-        className: 'buttons-csv',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
-                <path d="M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4"></path>
-                <path d="M7 16.5a1.5 1.5 0 0 0 -3 0v3a1.5 1.5 0 0 0 3 0"></path>
-                <path d="M10 20.25c0 .414 .336 .75 .75 .75h1.25a1 1 0 0 0 1 -1v-1a1 1 0 0 0 -1 -1h-1a1 1 0 0 1 -1 -1v-1a1 1 0 0 1 1 -1h1.25a.75 .75 0 0 1 .75 .75"></path>
-                <path d="M16 15l2 6l2 -6"></path>
-            </svg>
-            ${dt.i18n(
-                'buttons.csv',
-                KernVariables.languages.tables.csv ? KernVariables.languages.tables.csv : 'CSV'
-            )}`
-        },
-
-        action: (e, dt) => {
-            window.location = _buildUrl(dt, 'csv')
-        },
-    }
-
-    DataTable.ext.buttons.postCsv = {
-        className: 'buttons-csv',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
-                <path d="M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4"></path>
-                <path d="M7 16.5a1.5 1.5 0 0 0 -3 0v3a1.5 1.5 0 0 0 3 0"></path>
-                <path d="M10 20.25c0 .414 .336 .75 .75 .75h1.25a1 1 0 0 0 1 -1v-1a1 1 0 0 0 -1 -1h-1a1 1 0 0 1 -1 -1v-1a1 1 0 0 1 1 -1h1.25a.75 .75 0 0 1 .75 .75"></path>
-                <path d="M16 15l2 6l2 -6"></path>
-            </svg>
-            ${dt.i18n(
-                'buttons.csv',
-                KernVariables.languages.tables.csv ? KernVariables.languages.tables.csv : 'CSV'
-            )}`
-        },
-
-        action: (e, dt) => {
-            let url = dt.ajax.url() || window.location.href
-            let params = _buildParams(dt, 'csv')
-
-            _downloadFromUrl(url, params)
-        },
-    }
-
-    DataTable.ext.buttons.pdf = {
-        className: 'buttons-pdf',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
-                <path d="M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4"></path>
-                <path d="M5 18h1.5a1.5 1.5 0 0 0 0 -3h-1.5v6"></path>
-                <path d="M17 18h2"></path>
-                <path d="M20 15h-3v6"></path>
-                <path d="M11 15v6h1a2 2 0 0 0 2 -2v-2a2 2 0 0 0 -2 -2h-1z"></path>
-            </svg>
-            ${dt.i18n('buttons.pdf', 'PDF')}`
-        },
-
-        action: (e, dt) => {
-            window.location = _buildUrl(dt, 'pdf')
-        },
-    }
-
-    DataTable.ext.buttons.postPdf = {
-        className: 'buttons-pdf',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                <path d="M14 3v4a1 1 0 0 0 1 1h4"></path>
-                <path d="M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4"></path>
-                <path d="M5 18h1.5a1.5 1.5 0 0 0 0 -3h-1.5v6"></path>
-                <path d="M17 18h2"></path>
-                <path d="M20 15h-3v6"></path>
-                <path d="M11 15v6h1a2 2 0 0 0 2 -2v-2a2 2 0 0 0 -2 -2h-1z"></path>
-            </svg>
-            ${dt.i18n('buttons.pdf', 'PDF')}`
-        },
-
-        action: (e, dt) => {
-            let url = dt.ajax.url() || window.location.href
-            let params = _buildParams(dt, 'pdf')
-
-            _downloadFromUrl(url, params)
-        },
-    }
-
-    DataTable.ext.buttons.print = {
-        className: 'buttons-print',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                    <path d="M17 17h2a2 2 0 0 0 2 -2v-4a2 2 0 0 0 -2 -2h-14a2 2 0 0 0 -2 2v4a2 2 0 0 0 2 2h2"></path>
-                    <path d="M17 9v-4a2 2 0 0 0 -2 -2h-6a2 2 0 0 0 -2 2v4"></path>
-                    <path d="M7 13m0 2a2 2 0 0 1 2 -2h6a2 2 0 0 1 2 2v4a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2z"></path>
-                </svg>
-                ${dt.i18n(
-                    'buttons.print',
-                    KernVariables.languages.tables.print ? KernVariables.languages.tables.print : 'Print'
-                )}`
-        },
-
-        action: (e, dt) => {
-            window.location = _buildUrl(dt, 'print')
-        },
-    }
-
-    DataTable.ext.buttons.reset = {
-        className: 'buttons-reset',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                    <path d="M9 11l-4 4l4 4m-4 -4h11a4 4 0 0 0 0 -8h-1"></path>
-                </svg>
-                ${dt.i18n(
-                    'buttons.reset',
-                    KernVariables.languages.tables.reset ? KernVariables.languages.tables.reset : 'Reset'
-                )}`
-        },
-
-        action: () => {
-            $('.table thead input').val('').keyup()
-            $('.table thead select').val('').change()
-        },
-    }
-
-    DataTable.ext.buttons.reload = {
-        className: 'buttons-reload',
-
-        text: (dt) => {
-            return `
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                    <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" />
-                    <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
-                </svg>
-                ${dt.i18n(
-                    'buttons.reload',
-                    KernVariables.languages.tables.reload ? KernVariables.languages.tables.reload : 'Reload'
-                )}`
-        },
-
-        action: (e, dt) => {
-            dt.draw(false)
-        },
-    }
-
-    DataTable.ext.buttons.create = {
-        className: 'buttons-create',
-
-        text: (dt) => {
-            return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                <path d="M12 5l0 14"></path>
-                <path d="M5 12l14 0"></path>
-            </svg>
-            ${dt.i18n('buttons.create', 'Create')}`
-        },
-
-        action: () => {
-            window.location = window.location.href.replace(/\/+$/, '') + '/create'
-        },
-    }
-
-    if (typeof DataTable.ext.buttons.copyHtml5 !== 'undefined') {
-        $.extend(DataTable.ext.buttons.copyHtml5, {
-            text: (dt) => {
-                return `<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-                    <path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"></path>
-                    <path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"></path>
-                </svg>
-                ${dt.i18n('buttons.copy', 'Copy')}`
-            },
-        })
-    }
-
-    class TableManagement {
-        constructor() {
-            this.currentTableHash = window.DATATABLES_RANDOM_HASH || ""
-            this.init()
-            this.handleActionsRow()
-            this.handleActionsExport()
-        }
-
-        init() {
-            $(document).on('change', '.table-check-all', (event) => {
-                let _self = $(event.currentTarget)
-                let set = _self.attr('data-set')
-                let checked = _self.prop('checked')
-
-                $(set).each((index, el) => {
-                    if (checked) {
-                        $(el).prop('checked', true).trigger('change')
-                    } else {
-                        $(el).prop('checked', false).trigger('change')
-                    }
-                })
-            })
-
-            $(document).find('.table-check-all').closest('th').removeAttr('title')
-
-            $(document).on('change', '.checkboxes', (event) => {
-                let _self = $(event.currentTarget)
-                let table = _self.closest('.table-wrapper').find('.table').prop('id')
-                let checkboxAll = _self.closest('.table-wrapper').find('.table-check-all')
-
-                let ids = []
-                let $table = $('#' + table)
-
-                $table.find('.checkboxes:checked').each((i, el) => {
-                    ids[i] = $(el).val()
-                })
-
-                let row = _self.closest('tr')
-
-                if (_self.prop('checked')) {
-                    row.addClass('selected')
-                } else {
-                    row.removeClass('selected')
-                }
-
-                if (ids.length !== $table.find('.checkboxes').length) {
-                    checkboxAll.prop('checked', false)
-
-                    if (ids.length > 0) {
-                        checkboxAll.prop('indeterminate', true)
-                    } else {
-                        checkboxAll.prop('indeterminate', false)
-                    }
-                } else {
-                    checkboxAll.prop('checked', true)
-                    checkboxAll.prop('indeterminate', false)
-                }
-            })
-
-            $(document).on('click', '.btn-show-table-options', (event) => {
-                event.preventDefault()
-                $(event.currentTarget).closest('.table-wrapper').find('.table-configuration-wrap').slideToggle(500)
-            })
-
-            $(document).on('click', '.action-item', (event) => {
-                event.preventDefault()
-                let span = $(event.currentTarget).find('span[data-href]')
-                let action = span.data('action')
-                let url = span.data('href')
-                if (action && url !== '#') {
-                    window.location.href = url
-                }
-            })
-
-            this.initRandomHash()
-        }
-
-        initRandomHash() {
-            let localRandomHash = localStorage.getItem('DataTables_Random_Hash')
-
-            if (! localRandomHash && ! this.currentTableHash) {
-                return;
+            if (!body.rows.length) {
+                const td = body.insertRow().insertCell()
+                td.colSpan = this.options.columns.filter((column) => column.visible !== false).length
+                td.textContent = this.options.empty || 'No records found'
             }
-
-            if (localRandomHash !== this.currentTableHash) {
-                Object.keys(localStorage).filter(key => key.startsWith('DataTables_')).forEach(key => {
-                    localStorage.removeItem(key)
-                })
-
-                localStorage.setItem('DataTables_Random_Hash', this.currentTableHash)
-
-                window.location.reload()
-            }
-        }
-
-        handleActionsRow() {
-            let that = this
-            $(document).on('click', '.deleteDialog', (event) => {
-                event.preventDefault()
-                let _self = $(event.currentTarget)
-
-                let url = _self.data('section')
-
-                if (!url) {
-                    url = _self.prop('href')
-                }
-
-                $('.delete-crud-entry').data('section', url).data('parent-table', _self.closest('.table').prop('id'))
-                $('.modal-confirm-delete').modal('show')
+            this.total = Number(result.recordsFiltered ?? result.recordsTotal ?? 0)
+            this.previous.disabled = this.start === 0
+            this.next.disabled = this.length < 0 || this.start + this.length >= this.total
+            this.status.textContent = `${this.total ? this.start + 1 : 0}–${(this.length < 0 ? this.total : Math.min(this.start + this.length, this.total))} / ${this.total}`
+            this.element.querySelectorAll('thead th').forEach((heading, index) => {
+                heading.setAttribute('aria-sort', this.order?.[0] === index ? this.order?.[1] === 'asc' ? 'ascending' : 'descending' : 'none')
             })
-
-            $('.delete-crud-entry').on('click', (event) => {
-                event.preventDefault()
-                let _self = $(event.currentTarget)
-
-                Kern.showButtonLoading(_self)
-
-                let deleteURL = _self.data('section')
-
-                $httpClient
-                    .make()
-                    .delete(deleteURL)
-                    .then(({ data }) => {
-                        window.LaravelDataTables[_self.data('parent-table')]
-                            .row($(`a[data-section="${deleteURL}"]`).closest('tr'))
-                            .remove()
-                            .draw()
-
-                        Kern.showSuccess(data.message)
-
-                        _self.closest('.modal').modal('hide')
-                    })
-                    .catch(() => {
-                        $('.modal-confirm-delete').modal('hide')
-                    })
-                    .finally(() => {
-                        Kern.hideButtonLoading(_self)
-                    })
-            })
-
-            $(document).on('click', '.delete-many-entry-trigger', (event) => {
-                event.preventDefault()
-                let _self = $(event.currentTarget)
-
-                let table = _self.closest('.table-wrapper').find('.table').prop('id')
-
-                let ids = []
-
-                $(`#${table}`)
-                    .find('.checkboxes:checked')
-                    .each((i, el) => {
-                        ids[i] = $(el).val()
-                    })
-
-                if (ids.length === 0) {
-                    Kern.showError(
-                        KernVariables.languages.tables.please_select_record
-                            ? KernVariables.languages.tables.please_select_record
-                            : 'Please select at least one record to perform this action!'
-                    )
-                    return false
-                }
-
-                $('.delete-many-entry-button')
-                    .data('href', _self.prop('href'))
-                    .data('parent-table', table)
-                    .data('class-item', _self.data('class-item'))
-
-                $('.delete-many-modal').modal('show')
-            })
-
-            $('.delete-many-entry-button').on('click', (event) => {
-                event.preventDefault()
-
-                let _self = $(event.currentTarget)
-
-                Kern.showButtonLoading(_self)
-
-                let $table = $(`#${_self.data('parent-table')}`)
-
-                let ids = []
-                $table.find('.checkboxes:checked').each((i, el) => {
-                    ids[i] = $(el).val()
-                })
-
-                $httpClient
-                    .make()
-                    .delete(_self.data('href'), {
-                        ids: ids,
-                        class: _self.data('class-item'),
-                    })
-                    .then(({ data }) => {
-                        Kern.showSuccess(data.message)
-
-                        $table.find('.table-check-all').prop('checked', false).prop('indeterminate', false)
-
-                        window.LaravelDataTables[_self.data('parent-table')].draw()
-
-                        _self.closest('.modal').modal('hide')
-                    })
-                    .finally(() => {
-                        Kern.hideButtonLoading(_self)
-                    })
-            })
-
-            $(document).on('click', '[data-trigger-bulk-action]', (event) => {
-                event.preventDefault()
-
-                const _self = $(event.currentTarget)
-
-                const tableId = _self.closest('.table-wrapper').find('.table').prop('id')
-
-                const ids = []
-
-                $(`#${tableId}`)
-                    .find('.checkboxes:checked')
-                    .each((i, el) => ids.push($(el).val()))
-
-                if (ids.length === 0) {
-                    Kern.showError(
-                        KernVariables.languages.tables.please_select_record
-                            ? KernVariables.languages.tables.please_select_record
-                            : 'Please select at least one record to perform this action!'
-                    )
-
-                    return false
-                }
-
-                $('.confirm-trigger-bulk-actions-button')
-                    .data('href', _self.prop('href'))
-                    .data('method', _self.data('method'))
-                    .data('table-id', tableId)
-                    .data('table-target', _self.data('table-target'))
-                    .data('target', _self.data('target'))
-
-                const modal = $('.bulk-action-confirm-modal')
-
-                modal.find('h3').text(_self.data('confirmation-modal-title'))
-                modal.find('.modal-body > .text-muted').text(_self.data('confirmation-modal-message'))
-                modal.find('button.btn[data-bs-dismiss="modal"]').text(_self.data('confirmation-modal-cancel-button'))
-                modal.find('button.confirm-trigger-bulk-actions-button').text(_self.data('confirmation-modal-button'))
-
-                modal.modal('show')
-            })
-
-            $(document).on('click', '.confirm-trigger-bulk-actions-button', (event) => {
-                event.preventDefault()
-
-                const _self = $(event.currentTarget)
-
-                Kern.showButtonLoading(_self)
-
-                const tableId = _self.data('table-id')
-                const method = _self.data('method').toLowerCase() || 'post'
-
-                const $table = $(`#${tableId}`)
-
-                const ids = []
-
-                $table.find('.checkboxes:checked').each((i, el) => ids.push($(el).val()))
-
-                $httpClient
-                    .make()
-                    [method](_self.data('href'), {
-                        ids: ids,
-                        bulk_action: 1,
-                        bulk_action_table: _self.data('table-target'),
-                        bulk_action_target: _self.data('target'),
-                    })
-                    .then(({ data }) => {
-                        Kern.showSuccess(data.message)
-
-                        $table.find('.table-check-all').prop('checked', false).prop('indeterminate', false)
-
-                        window.LaravelDataTables[tableId].draw()
-
-                        _self.closest('.modal').modal('hide')
-                    })
-                    .finally(() => {
-                        Kern.hideButtonLoading(_self)
-                    })
-            })
-
-            $(document).on('click', '[data-dt-single-action]', (event) => {
-                event.preventDefault()
-
-                const _self = $(event.currentTarget)
-
-                const tableId = _self.closest('.table-wrapper').find('.table').prop('id')
-
-                if (_self.data('confirmation-modal')) {
-                    $('.confirm-trigger-single-action-button')
-                        .data('href', _self.prop('href'))
-                        .data('method', _self.data('method'))
-                        .data('table-id', tableId)
-
-                    const modal = $('.single-action-confirm-modal')
-
-                    modal.find('.modal-body > h3').text(_self.data('confirmation-modal-title'))
-                    modal.find('.modal-body > .text-muted').text(_self.data('confirmation-modal-message'))
-                    modal
-                        .find('button.btn[data-bs-dismiss="modal"]')
-                        .text(_self.data('confirmation-modal-cancel-button'))
-                    modal
-                        .find('button.confirm-trigger-single-action-button')
-                        .text(_self.data('confirmation-modal-button'))
-
-                    modal.modal('show')
-                } else {
-                    triggerSingleAction(tableId, _self.prop('href'), _self.data('method'))
-                }
-            })
-
-            $(document).on('click', '.confirm-trigger-single-action-button', (event) => {
-                event.preventDefault()
-
-                const _self = $(event.currentTarget)
-
-                Kern.showButtonLoading(_self)
-
-                triggerSingleAction(
-                    _self.data('table-id'),
-                    _self.data('href'),
-                    _self.data('method'),
-                    () => {
-                        _self.closest('.modal').modal('hide')
-
-                        Kern.hideButtonLoading(_self)
-                    },
-                    () => {
-                        Kern.hideButtonLoading(_self)
-                    }
-                )
-            })
-
-            const triggerSingleAction = (tableId, url, method, onSuccess, onError) => {
-                const $table = $(`#${tableId}`)
-                const $method = method.toLowerCase() || 'post'
-
-                $httpClient
-                    .make()
-                    [$method](url)
-                    .then(({ data }) => {
-                        Kern.showSuccess(data.message)
-
-                        $table.find('.table-check-all').prop('checked', false).prop('indeterminate', false)
-
-                        window.LaravelDataTables[tableId].draw()
-
-                        typeof onSuccess === 'function' && onSuccess.apply(this, data)
-                    })
-                    .catch((error) => {
-                        typeof onError === 'function' && onError.apply(this, error)
-                    })
-            }
-
-            $(document).on('click', '.bulk-change-item', (event) => {
-                event.preventDefault()
-                let _self = $(event.currentTarget)
-
-                let table = _self.closest('.table-wrapper').find('.table').prop('id')
-
-                let ids = []
-                $('#' + table)
-                    .find('.checkboxes:checked')
-                    .each((i, el) => {
-                        ids[i] = $(el).val()
-                    })
-
-                if (ids.length === 0) {
-                    Kern.showError(
-                        KernVariables.languages.tables.please_select_record
-                            ? KernVariables.languages.tables.please_select_record
-                            : 'Please select at least one record to perform this action!'
-                    )
-                    return false
-                }
-
-                that.loadBulkChangeData(_self)
-
-                $('.confirm-bulk-change-button')
-                    .data('parent-table', table)
-                    .data('class-item', _self.data('class-item'))
-                    .data('key', _self.data('key'))
-                    .data('url', _self.data('save-url'))
-                $('.modal-bulk-change-items').modal('show')
-            })
-
-            $(document).on('click', '.confirm-bulk-change-button', (event) => {
-                event.preventDefault()
-                let _self = $(event.currentTarget)
-                let value = _self.closest('.modal').find('.input-value').val()
-                let inputKey = _self.data('key')
-
-                let $table = $('#' + _self.data('parent-table'))
-
-                let ids = []
-                $table.find('.checkboxes:checked').each((i, el) => {
-                    ids[i] = $(el).val()
-                })
-
-                Kern.showButtonLoading(_self)
-
-                $httpClient
-                    .make()
-                    .post(_self.data('url'), {
-                        ids: ids,
-                        key: inputKey,
-                        value: value,
-                        class: _self.data('class-item'),
-                    })
-                    .then(({ data }) => {
-                        Kern.showSuccess(data.message)
-
-                        $table.find('.table-check-all').prop('checked', false).prop('indeterminate', false)
-
-                        $.each(ids, (index, item) => {
-                            window.LaravelDataTables[_self.data('parent-table')]
-                                .row($table.find('.checkboxes[value="' + item + '"]').closest('tr'))
-                                .remove()
-                                .draw()
-                        })
-                        _self.closest('.modal').modal('hide')
-                    })
-                    .finally(() => {
-                        Kern.hideButtonLoading(_self)
-                    })
-            })
-
-            $(document).on('input', '.table-search-input input[type=search]', (event) => {
-                const $searchInput = $(event.currentTarget)
-
-                clearTimeout($searchInput.data('search-timer'))
-                $searchInput.data('search-timer', setTimeout(() => {
-                    const searchValue = $searchInput.val()
-
-                    if (searchValue) {
-                        $searchInput.closest('label').find('.search-icon').hide()
-                        $searchInput.closest('label').find('.search-reset-icon').show()
-                    } else {
-                        $searchInput.closest('label').find('.search-icon').show()
-                        $searchInput.closest('label').find('.search-reset-icon').hide()
-                    }
-
-                    $searchInput.closest('.table-wrapper').find('table').DataTable().search(searchValue).draw()
-                }, 200))
-            })
-
-            $(document).on('click', '.table-search-input .search-icon', (event) => {
-                const $searchInput = $(event.currentTarget).closest('.table-search-input').find('input[type=search]')
-                clearTimeout($searchInput.data('search-timer'))
-                $searchInput.closest('.table-wrapper').find('table').DataTable().search($searchInput.val()).draw()
-            })
-
-            $(document).on('click', '.table-search-input .search-reset-icon', (event) => {
-                const $searchInput = $(event.currentTarget).closest('.table-search-input').find('input[type=search]')
-
-                clearTimeout($searchInput.data('search-timer'))
-                $searchInput.val('')
-
-                $searchInput.closest('.table-wrapper').find('table').DataTable().search('').draw()
-            })
-
-            $(document).on('click', '[data-bb-toggle="dt-buttons"]', (event) => {
-                const target = $(event.currentTarget)
-                const tableId = target.attr('aria-controls')
-                const buttonTarget = target.data('bb-target')
-
-                $(`${buttonTarget}[aria-controls="${tableId}"]`).trigger('click')
-            })
-
-            $(document).on('click', '[data-bb-toggle="dt-exports"]', (event) => {
-                const target = $(event.currentTarget)
-                const tableId = target.attr('aria-controls')
-                const value = target.data('bb-target')
-
-                const dt = window.LaravelDataTables[tableId]
-
-                let url = dt.ajax.url() || window.location.href
-                let params = _buildParams(dt, value)
-
-                _downloadFromUrl(url, params)
-            })
-
-            const $columnsVisibleDropdowns = document.querySelectorAll('[data-bb-toggle="dt-columns-visibility-dropdown"]')
-
-            let $formDirty = {}
-
-            if ($columnsVisibleDropdowns.length) {
-                for (const $dropdown of $columnsVisibleDropdowns) {
-                    $dropdown.addEventListener('hidden.bs.dropdown', function (event) {
-                        const target = $(event.currentTarget)
-                        const tableId = target.attr('aria-controls')
-                        const form = target.find('form[data-bb-toggle="dt-columns-visibility"]')
-
-                        if (! $formDirty[tableId]) {
-                            return
-                        }
-
-                        $httpClient
-                            .make()
-                            .putForm(form.prop('action'), new FormData(form[0]))
-                            .then(() => {
-                                const dt = window.LaravelDataTables[tableId]
-
-                                dt.state.clear()
-
-                                location.reload()
-
-                                $formDirty[tableId] = false
-                            })
-                    })
-                }
-            }
-
-            $(document).on('change', '[data-bb-toggle="dt-columns-visibility-toggle"]', (event) => {
-                const target = $(event.currentTarget).closest('.dropdown')
-                const tableId = target.attr('aria-controls')
-
-                $formDirty[tableId] = true
-            })
-        }
-
-        loadBulkChangeData($element) {
-            let $modal = $('.modal-bulk-change-items')
-
-            $httpClient
-                .make()
-                .get($modal.find('.confirm-bulk-change-button').data('load-url'), {
-                    class: $element.data('class-item'),
-                    key: $element.data('key'),
-                })
-                .then((response) => {
-                    let data = $.map(response.data.data, (value, key) => {
-                        return { id: key, name: value }
-                    })
-
-                    let $parent = $('.modal-bulk-change-content')
-
-                    $parent.html(response.data.html)
-
-                    let $input = $modal.find('input[type=text].input-value')
-                    if ($input.length) {
-                        $input.typeahead({ source: data })
-                        $input.data('typeahead').source = data
-                    }
-
-                    Kern.initResources()
-                })
-        }
-
-        handleActionsExport() {
-            $(document).on('click', '.export-data', (event) => {
-                let _self = $(event.currentTarget)
-                let table = _self.closest('.table-wrapper').find('.table').prop('id')
-
-                let ids = []
-                $('#' + table)
-                    .find('.checkboxes:checked')
-                    .each((i, el) => {
-                        ids[i] = $(el).val()
-                    })
-
-                event.preventDefault()
-
-                $httpClient
-                    .make()
-                    .post(_self.prop('href'), {
-                        'ids-checked': ids,
-                    })
-                    .then(({ data }) => {
-                        let a = document.createElement('a')
-                        a.href = data.file
-                        a.download = data.name
-                        document.body.appendChild(a)
-                        a.trigger('click')
-                        a.remove()
-                    })
-            })
-        }
+            this.updateSelection()
+            window.Kern?.initResources()
+            document.dispatchEvent(new CustomEvent('core-table-init-completed', { detail: { table: this } }))
+        } catch (error) {
+            if (error.name !== 'AbortError') { this.status.textContent = error.message; window.Kern?.showError(error.message) }
+        } finally { if (this.controller === controller) this.element.removeAttribute('aria-busy') }
     }
-
-    $.fn.dataTable.Buttons.defaults.dom.container.className = 'dt-buttons btn-group w-100 w-sm-auto'
-    $.fn.dataTable.Buttons.defaults.dom.button.className = 'btn'
-
-    $(() => {
-        new TableManagement()
+    ids() { return Array.from(this.element.querySelectorAll('.checkboxes:checked'), (checkbox) => checkbox.value) }
+    updateSelection() {
+        const all = Array.from(this.element.querySelectorAll('.checkboxes'))
+        const checked = all.filter((checkbox) => checkbox.checked)
+        this.element.querySelectorAll('.table-check-all').forEach((checkbox) => { checkbox.checked = all.length > 0 && checked.length === all.length; checkbox.indeterminate = checked.length > 0 && checked.length < all.length })
+        all.forEach((checkbox) => checkbox.closest('tr')?.classList.toggle('selected', checkbox.checked))
+    }
+    async mutate(url, method, data = {}) {
+        const response = await fetch(url, { method: (method || 'POST').toUpperCase(), credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf(), 'X-Requested-With': 'XMLHttpRequest' }, body: JSON.stringify(data) })
+        const result = await response.json()
+        if (!response.ok || result.error) throw new Error(result.message || response.statusText)
+        window.Kern?.showSuccess(result.message)
+        await this.load()
+    }
+    async export(type) {
+        const url = new URL(this.options.url, location.href)
+        url.pathname = url.pathname.replace(/\/$/, '') + '/export'
+        const body = this.params()
+        body.set('action', type)
+        const response = await fetch(url, { method: 'POST', body, credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': csrf() } })
+        if (!response.ok) throw new Error(response.statusText)
+        const link = document.createElement('a')
+        link.href = URL.createObjectURL(await response.blob())
+        link.download = response.headers.get('Content-Disposition')?.match(/filename[^;=]*=["']?([^"';]+)/)?.[1] || `export.${type === 'excel' ? 'xlsx' : 'csv'}`
+        document.body.append(link)
+        link.click()
+        link.remove()
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+    }
+    async action(event) {
+        const button = event.target.closest('a, button')
+        if (!button) return
+        try {
+            if (button.matches('.search-icon, .search-reset-icon')) {
+                event.preventDefault()
+                clearTimeout(this.timer)
+                const input = this.wrapper.querySelector('.table-search-input input')
+                if (button.matches('.search-reset-icon')) input.value = ''
+                this.search = input.value; this.start = 0; await this.load()
+            } else if (button.matches('.buttons-reload, [data-bb-toggle="dt-buttons"]')) { event.preventDefault(); await this.load() }
+            else if (button.matches('.btn-show-table-options')) {
+                event.preventDefault()
+                const panel = this.wrapper.querySelector('.table-configuration-wrap')
+                if (panel) panel.style.display = getComputedStyle(panel).display === 'none' ? 'block' : 'none'
+            } else if (button.matches('[data-bb-toggle="dt-exports"], .buttons-excel, .buttons-csv')) {
+                event.preventDefault()
+                await this.export(button.dataset.bbTarget || (button.classList.contains('buttons-excel') ? 'excel' : 'csv'))
+            } else if (button.matches('.deleteDialog, [data-dt-single-action], [data-trigger-bulk-action], .delete-many-entry-trigger')) {
+                event.preventDefault()
+                const bulk = button.matches('[data-trigger-bulk-action], .delete-many-entry-trigger')
+                const ids = this.ids()
+                if (bulk && !ids.length) { window.Kern?.showError('Please select at least one record.'); return }
+                const title = button.dataset.confirmationModalTitle || 'Confirm action'
+                const message = button.dataset.confirmationModalMessage || 'Are you sure you want to continue?'
+                if ((bulk || button.matches('.deleteDialog') || button.dataset.confirmationModal) && !window.confirm(`${title}\n${message}`)) return
+                button.disabled = true
+                try {
+                    await this.mutate(button.dataset.section || button.href, button.dataset.method || 'DELETE', bulk ? { ids, class: button.dataset.classItem, bulk_action: 1, bulk_action_table: button.dataset.tableTarget, bulk_action_target: button.dataset.target } : {})
+                } finally { button.disabled = false }
+            } else if (button.matches('.bulk-change-item')) {
+                event.preventDefault()
+                if (!this.ids().length) { window.Kern?.showError('Please select at least one record.'); return }
+                const modal = document.querySelector('.modal-bulk-change-items')
+                const submit = modal?.querySelector('.confirm-bulk-change-button')
+                if (!submit) return
+                submit.dataset.parentTable = this.element.id
+                submit.dataset.url = button.dataset.saveUrl
+                submit.dataset.classItem = button.dataset.classItem
+                submit.dataset.key = button.dataset.key
+                const url = new URL(submit.dataset.loadUrl, location.href)
+                url.searchParams.set('class', button.dataset.classItem)
+                url.searchParams.set('key', button.dataset.key)
+                const response = await fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+                const result = await response.json()
+                if (!response.ok) throw new Error(result.message || response.statusText)
+                modal.querySelector('.modal-bulk-change-content').innerHTML = result.html || ''
+                window.Kern?.initResources()
+                window.bootstrap?.Modal.getOrCreateInstance(modal).show()
+            }
+        } catch (error) { window.Kern?.showError(error.message) }
+    }
+}
+function initialize() {
+    document.querySelectorAll('script[data-kern-table]').forEach((script) => {
+        if (tables.has(script.dataset.kernTable)) return
+        const element = document.getElementById(script.dataset.kernTable)
+        if (element) tables.set(element.id, new NativeTable(element, JSON.parse(script.textContent)))
     })
-})(jQuery, jQuery.fn.dataTable)
+}
+document.addEventListener('click', async (event) => {
+    const button = event.target.closest('.confirm-bulk-change-button')
+    const table = button && tables.get(button.dataset.parentTable)
+    if (!table || button.disabled) return
+    event.preventDefault()
+    button.disabled = true
+    try {
+        await table.mutate(button.dataset.url, 'POST', { ids: table.ids(), class: button.dataset.classItem, key: button.dataset.key, value: button.closest('.modal').querySelector('.input-value')?.value || '' })
+        window.bootstrap?.Modal.getInstance(button.closest('.modal'))?.hide()
+    } catch (error) { window.Kern?.showError(error.message) }
+    finally { button.disabled = false }
+})
+document.addEventListener('change', async (event) => {
+    if (!event.target.matches('[data-bb-toggle="dt-columns-visibility-toggle"]')) return
+    const form = event.target.closest('form')
+    const response = await fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf() } })
+    if (response.ok) location.reload()
+    else window.Kern?.showError('Could not save column visibility.')
+})
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true })
+else initialize()
+document.addEventListener('core-init-resources', initialize)

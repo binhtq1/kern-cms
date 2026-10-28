@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Kern\Base\Supports\Upgrade\DatabaseSnapshot;
+use Kern\Base\Supports\Upgrade\NativeFrontendCompatibility;
 use Kern\Base\Supports\Upgrade\RuntimeAssets;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
@@ -93,6 +94,24 @@ class CmsUpgradeTest extends TestCase
         $this->assertFileDoesNotExist(public_path('build/admin/manifest.json'));
         $this->assertDirectoryDoesNotExist(storage_path('kern-upgrades'));
         $this->assertFileDoesNotExist(storage_path('app/kern/upgrade.json'));
+    }
+
+    public function test_legacy_site_owned_frontend_stops_upgrade_before_maintenance_or_data_changes(): void
+    {
+        $this->app->instance(NativeFrontendCompatibility::class, new class extends NativeFrontendCompatibility
+        {
+            public function assertSupported(): void
+            {
+                throw new RuntimeException('Site-owned frontend code still requires jQuery: plugin customer-contact.');
+            }
+        });
+        $migrations = DB::table('migrations')->count();
+        $this->artisan('cms:upgrade')->expectsOutputToContain('Site-owned frontend code still requires jQuery')->assertFailed();
+        $this->assertSame($migrations, DB::table('migrations')->count());
+        $this->assertDatabaseHas('settings', ['key' => 'site_custom', 'value' => 'original']);
+        $this->assertDirectoryDoesNotExist(storage_path('kern-upgrades'));
+        $this->assertFileDoesNotExist(storage_path('app/kern/upgrade.json'));
+        $this->assertFalse(app()->isDownForMaintenance());
     }
 
     public function test_customized_runtime_assets_are_rejected_before_database_changes(): void

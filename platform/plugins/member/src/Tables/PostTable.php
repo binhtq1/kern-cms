@@ -9,7 +9,6 @@ use Kern\Base\Models\BaseQueryBuilder;
 use Kern\Blog\Models\Category;
 use Kern\Blog\Models\Post;
 use Kern\Member\Models\Member;
-use Kern\Member\Tables\Traits\ForMember;
 use Kern\Table\Abstracts\TableAbstract;
 use Kern\Table\Actions\DeleteAction;
 use Kern\Table\Actions\EditAction;
@@ -27,8 +26,6 @@ use Kern\Table\HeaderActions\CreateHeaderAction;
 
 class PostTable extends TableAbstract
 {
-    use ForMember;
-
     public function setup(): void
     {
         $this
@@ -59,7 +56,7 @@ class PostTable extends TableAbstract
                         foreach ($ids as $id) {
                             $post = Post::query()->findOrFail($id);
 
-                            abort_if(auth('member')->id() !== $post->author_id, 403);
+                            abort_unless(auth('member')->id() === $post->author_id && $post->author_type === Member::class, 403);
                         }
                     }),
             ])

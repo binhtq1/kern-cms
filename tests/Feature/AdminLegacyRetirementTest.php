@@ -13,9 +13,6 @@ use Kern\Backup\Supports\Backup;
 use Kern\Base\Facades\Assets;
 use Kern\Base\Facades\BaseHelper;
 use Kern\Base\Http\Middleware\HandleAdminInertiaRequests;
-use Kern\Blog\Models\Post;
-use Kern\CustomField\Models\FieldGroup;
-use Kern\CustomField\Models\FieldItem;
 use Kern\Language\Models\Language as LanguageModel;
 use Kern\Member\Models\Member;
 use Kern\PluginManagement\Services\PluginService;
@@ -262,62 +259,28 @@ class AdminLegacyRetirementTest extends TestCase
         $this->assertStringNotContainsString('/vendor/core/core/base/libraries/vue', $html);
     }
 
-    public function test_member_public_dashboard_and_post_screens_keep_shared_blade_assets(): void
+    public function test_member_dashboard_and_posts_use_react_without_shared_legacy_assets(): void
     {
         foreach (['blog', 'member', 'custom-field'] as $plugin) {
             if (! is_plugin_active($plugin)) {
                 $this->assertFalse(app(PluginService::class)->activate($plugin)['error'], $plugin);
             }
         }
-
         setting()->set(['theme' => 'ripple', 'member_enabled_login' => '1'])->save();
         Theme::setThemeName('ripple');
         $this->app->register(ThemeManagementServiceProvider::class, true);
         $this->app->register(RouteServiceProvider::class, true);
         require plugin_path('member/routes/member.php');
         Route::getRoutes()->refreshNameLookups();
-
         $member = Member::query()->forceCreate([
-            'first_name' => 'Public',
-            'last_name' => 'Member',
-            'email' => 'public-member@example.test',
-            'password' => bcrypt('public-member-password'),
-            'confirmed_at' => now(),
+            'first_name' => 'Public', 'last_name' => 'Member', 'email' => 'public-member@example.test',
+            'password' => bcrypt('public-member-password'), 'confirmed_at' => now(),
         ]);
         $this->actingAs($member, 'member');
-        $group = FieldGroup::query()->create([
-            'title' => 'Member post custom fields',
-            'rules' => json_encode([[['name' => 'model_name', 'type' => '==', 'value' => Post::class]]]),
-            'status' => 'published',
-        ]);
-        FieldItem::query()->create([
-            'field_group_id' => $group->getKey(),
-            'title' => 'Public note',
-            'slug' => 'public_note',
-            'type' => 'text',
-            'options' => '{}',
-        ]);
-
-        $dashboard = $this->get(route('public.member.dashboard'))->assertOk()->assertViewIs('plugins/member::themes.dashboard.index');
-        $this->assertPublicMemberHtml($dashboard->getContent());
-        $this->assertStringContainsString('/vendor/core/plugins/member/css/dashboard/style.css', $dashboard->getContent());
-        $this->assertStringContainsString('/vendor/core/plugins/member/css/dashboard/activity-logs.css', $dashboard->getContent());
-        $this->assertStringContainsString('/vendor/core/plugins/member/js/dashboard/activity-logs.js', $dashboard->getContent());
-        $this->assertStringContainsString('/vendor/core/plugins/member/js/dashboard/script.js', $dashboard->getContent());
-        $this->assertStringContainsString('/vendor/core/core/base/libraries/jquery.min.js', $dashboard->getContent());
-        $this->assertStringContainsString('/vendor/core/core/base/libraries/vue.global.min.js', $dashboard->getContent());
-        $this->assertStringContainsString('/vendor/core/core/base/js/vue-app.js', $dashboard->getContent());
-
-        $posts = $this->get(route('public.member.posts.index'))->assertOk();
-        $this->assertPublicMemberHtml($posts->getContent());
-        $this->assertStringContainsString('/vendor/core/core/table/js/table.js', $posts->getContent());
-        $this->assertStringContainsString('/vendor/core/core/table/css/table.css', $posts->getContent());
-
-        $create = $this->get(route('public.member.posts.create'))->assertOk();
-        $this->assertPublicMemberHtml($create->getContent());
-        $this->assertStringContainsString('/vendor/core/core/base/libraries/jquery.min.js', $create->getContent());
-        $this->assertStringContainsString('/vendor/core/plugins/custom-field/css/custom-field.css', $create->getContent());
-        $this->assertStringContainsString('/vendor/core/plugins/custom-field/js/use-custom-fields.js', $create->getContent());
+        foreach (['public.member.dashboard', 'public.member.settings', 'public.member.posts.index', 'public.member.posts.create'] as $route) {
+            $response = $this->get(route($route))->assertOk()->assertViewIs('plugins/member::themes.dashboard.react');
+            $response->assertSee('data-page=', false)->assertDontSee('jquery', false)->assertDontSee('/vendor/core/', false)->assertDontSee('vue-app', false);
+        }
     }
 
     public function test_public_and_installer_assets_remain_available(): void
@@ -334,7 +297,6 @@ class AdminLegacyRetirementTest extends TestCase
             'platform/plugins/contact/resources/js/contact-public.js',
             'platform/plugins/contact/public/js/contact-public.js',
             'platform/plugins/member/resources/js/dashboard/script.js',
-            'platform/plugins/member/public/js/dashboard/script.js',
             'platform/themes/ripple/assets/js/ripple.js',
             'platform/themes/ripple/public/js/ripple.js',
             'platform/themes/ripple/public/css/style.css',

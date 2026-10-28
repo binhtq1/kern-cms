@@ -45,21 +45,11 @@
 
         @if (Session::has('success_msg') || Session::has('error_msg') || (isset($errors) && $errors->any()) || isset($error_msg))
             <script type="text/javascript">
-                $(function() {
-                    @if (Session::has('success_msg'))
-                        Kern.showSuccess('{{ session('success_msg') }}');
-                    @endif
-                    @if (Session::has('error_msg'))
-                        Kern.showError('{{ session('error_msg') }}');
-                    @endif
-                    @if (isset($error_msg))
-                        Kern.showError('{{ $error_msg }}');
-                    @endif
-                    @if (isset($errors))
-                    @foreach ($errors->all() as $error)
-                            Kern.showError('{{ $error }}');
-                        @endforeach
-                    @endif
+                document.addEventListener('DOMContentLoaded', () => {
+                    const success = {{ Js::from(session('success_msg')) }};
+                    const messages = {{ Js::from(array_filter(array_merge([session('error_msg'), $error_msg ?? null], isset($errors) ? $errors->all() : []))) }};
+                    if (success) window.Kern?.showSuccess(success);
+                    messages.forEach(message => window.Kern?.showError(message));
                 });
             </script>
         @endif

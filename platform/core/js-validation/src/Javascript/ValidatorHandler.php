@@ -86,7 +86,7 @@ class ValidatorHandler
     }
 
     /**
-     * Make Laravel Validations compatible with JQuery Validation Plugin.
+     * Serialize Laravel validation rules for native browser validation.
      *
      * @param  string  $attribute
      * @param  array  $rules

@@ -1,121 +1,96 @@
-class TableFilter {
-    $filterForm = $(document).find('form.filter-form')
-    $table = this.$filterForm.closest('.table-wrapper').find('table')
-
-    loadData($element) {
-        $httpClient
-            .make()
-            .get($('.filter-data-url').val(), {
-                class: $('.filter-data-class').val(),
-                key: $element.val(),
-                value: $element.closest('.filter-item').find('.filter-column-value').val(),
-            })
-            .then(({ data: res }) => {
-                const data = $.map(res.data, (value, key) => {
-                    return { id: key, name: value }
-                })
-                $element.closest('.filter-item').find('.filter-column-value-wrap').html(res.html)
-
-                const $input = $element.closest('.filter-item').find('.filter-column-value')
-                if ($input.length && $input.prop('type') === 'text') {
-                    $input.typeahead({ source: data })
-                    $input.data('typeahead').source = data
-                }
-
-                Kern.initResources()
-            })
+const requests = new WeakMap()
+let nextInputId = 0
+async function loadInput(select) {
+    const form = select.closest('.wrapper-filter')
+    const row = select.closest('.filter-item')
+    const endpoint = form?.querySelector('.filter-data-url')?.value
+    requests.get(select)?.abort()
+    requests.delete(select)
+    if (!endpoint || !row) return
+    if (!select.value) {
+        const input = document.createElement('input')
+        input.type = 'text'
+        input.className = 'form-control filter-column-value'
+        input.name = 'filter_values[]'
+        input.setAttribute('aria-label', 'Filter value')
+        row.querySelector('.filter-column-value-wrap')?.replaceChildren(input)
+        return
     }
-
-    init() {
-        const that = this
-
-        $.each($('.filter-items-wrap .filter-column-key'), (index, element) => {
-            if ($(element).val()) {
-                that.loadData($(element))
+    const controller = new AbortController()
+    requests.set(select, controller)
+    const url = new URL(endpoint, location.href)
+    url.searchParams.set('class', form.querySelector('.filter-data-class')?.value || '')
+    url.searchParams.set('key', select.value)
+    url.searchParams.set('value', row.querySelector('.filter-column-value')?.value || '')
+    try {
+        const response = await fetch(url, { signal: controller.signal, credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+        const result = await response.json()
+        if (!response.ok || result.error) throw new Error(result.message || response.statusText)
+        if (controller.signal.aborted) return
+        row.querySelector('.filter-column-value-wrap').innerHTML = result.html || ''
+        const input = row.querySelector('input.filter-column-value[type="text"]')
+        if (input && result.data) {
+            const datalist = document.createElement('datalist')
+            datalist.id = `kern-filter-options-${++nextInputId}`
+            for (const label of Object.values(result.data)) {
+                const option = document.createElement('option')
+                option.value = String(label)
+                datalist.append(option)
             }
-        })
-
-        this.$filterForm
-            .on('change', '.filter-column-key', (event) => {
-                that.loadData($(event.currentTarget))
-            })
-            .on('click', '.add-more-filter', () => {
-                const $template = $(document).find('.sample-filter-item-wrap')
-                const html = $template.html()
-
-                $(document).find('.filter-items-wrap').append(html.replace('<script>', '').replace('<\\/script>', ''))
-                Kern.initResources()
-
-                const element = $(document)
-                    .find('.filter-items-wrap .filter-item:last-child')
-                    .find('.filter-column-key')
-                if ($(element).val()) {
-                    that.loadData(element)
-                }
-            })
-            .on('click', '.btn-remove-filter-item', (event) => {
-                event.preventDefault()
-
-                const $currentTarget = $(event.currentTarget)
-
-                $currentTarget.closest('.filter-item').remove()
-                $currentTarget.tooltip('hide')
-            })
-            .on('click', '.btn-apply', (event) => {
-                event.preventDefault()
-
-                const button = $(event.currentTarget)
-                const form = button.closest('form.filter-form')
-
-                this.$filterForm.find('[data-bb-toggle="datatable-reset-filter"]').show()
-
-                const url = new URL(window.location.href)
-
-                const params = new URLSearchParams(url.search)
-                const data = form.serializeArray()
-                const paramsKey = {}
-
-                $.each(data, (index, item) => {
-                    let keyName = item.name
-
-                    if (typeof keyName === 'string' && keyName.endsWith('[]')) {
-                        let keyValue = (paramsKey[keyName] = paramsKey[keyName] || 0)
-
-                        params.set(`${keyName.replace('[]', `[${keyValue}]`)}`, item.value)
-
-                        paramsKey[keyName]++
-                    } else {
-                        params.set(item.name, item.value)
-                    }
-                })
-
-                window.history.pushState({}, '', `${url.pathname}?${params.toString()}`)
-
-                this.reloadDatatable(this.$table.DataTable())
-            })
-            .on('click', '[data-bb-toggle="datatable-reset-filter"]', (event) => {
-                event.preventDefault()
-
-                this.$filterForm.find('.form-filter:not(.filter-item-default)').remove()
-                this.$filterForm.find('.filter-item').find('.filter-column-key').val('').trigger('change')
-                this.$filterForm.find('.filter-item').find('.filter-column-operator').val('=')
-                this.$filterForm.find('.filter-item').find('.filter-column-value').val('')
-
-                $(event.currentTarget).hide()
-
-                const url = new URL(window.location.href)
-
-                window.history.pushState({}, '', url.pathname)
-
-                this.reloadDatatable(this.$table.DataTable())
-            })
-    }
-
-    reloadDatatable(datatable) {
-        datatable.ajax.url(window.location.href).load()
-    }
+            input.setAttribute('list', datalist.id)
+            input.after(datalist)
+        }
+        window.Kern?.initResources()
+    } catch (error) { if (error.name !== 'AbortError') window.Kern?.showError(error.message) }
 }
-
-$(() => {
-    new TableFilter().init()
+function reload(form, reset = false) {
+    const url = new URL(location.href)
+    for (const key of Array.from(url.searchParams.keys())) if (key.startsWith('filter_')) url.searchParams.delete(key)
+    if (!reset) {
+        const indexes = {}
+        for (const [name, value] of new FormData(form)) {
+            const key = name.endsWith('[]') ? name.slice(0, -2) + `[${indexes[name] || 0}]` : name
+            if (name.endsWith('[]')) indexes[name] = (indexes[name] || 0) + 1
+            url.searchParams.set(key, value)
+        }
+    }
+    history.replaceState({}, '', url)
+    const table = form.closest('.table-wrapper')?.querySelector('table')
+    const controller = window.KernTables?.get(table?.id)
+    if (controller) { controller.start = 0; controller.load() }
+    form.querySelectorAll('[data-bb-toggle="datatable-reset-filter"]').forEach((button) => { button.style.display = reset ? 'none' : '' })
+}
+document.addEventListener('change', (event) => {
+    if (event.target.matches('form.filter-form .filter-column-key')) loadInput(event.target)
 })
+document.addEventListener('submit', (event) => {
+    if (!event.target.matches('form.filter-form')) return
+    event.preventDefault()
+    reload(event.target)
+})
+document.addEventListener('click', (event) => {
+    const button = event.target.closest('.add-more-filter, .btn-remove-filter-item, [data-bb-toggle="datatable-reset-filter"]')
+    const form = button?.closest('form.filter-form')
+    if (!form) return
+    event.preventDefault()
+    if (button.matches('.add-more-filter')) {
+        const template = form.closest('.wrapper-filter').querySelector('.sample-filter-item-wrap')
+        const fields = form.querySelector('.filter-items-wrap')
+        if (template && fields) {
+            fields.insertAdjacentHTML('beforeend', template.innerHTML)
+            window.Kern?.initResources()
+            const select = fields.lastElementChild?.querySelector('.filter-column-key')
+            if (select?.value) loadInput(select)
+            select?.focus()
+        }
+    } else if (button.matches('.btn-remove-filter-item')) button.closest('.filter-item')?.remove()
+    else {
+        form.querySelectorAll('.form-filter:not(.filter-item-default)').forEach((row) => row.remove())
+        form.querySelectorAll('.filter-column-key, .filter-column-value').forEach((input) => { input.value = '' })
+        form.querySelectorAll('.filter-column-operator').forEach((input) => { input.value = '=' })
+        reload(form, true)
+    }
+})
+const initialize = () => document.querySelectorAll('form.filter-form .filter-column-key').forEach((select) => { if (select.value) loadInput(select) })
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true })
+else initialize()

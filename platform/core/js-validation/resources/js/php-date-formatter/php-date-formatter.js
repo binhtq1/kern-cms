@@ -11,24 +11,7 @@
  * For more JQuery plugins visit http://plugins.krajee.com
  * For more Yii related demos visit http://demos.krajee.com
  */
-;(function (root, factory) {
-    // noinspection JSUnresolvedVariable
-    if (typeof define === 'function' && define.amd) {
-        // AMD
-        // noinspection JSUnresolvedFunction
-        define([], factory)
-    } else {
-        // noinspection JSUnresolvedVariable
-        if (typeof module === 'object' && module.exports) {
-            // Node
-            // noinspection JSUnresolvedVariable
-            module.exports = factory()
-        } else {
-            // Browser globals
-            root.DateFormatter = factory()
-        }
-    }
-})(typeof self !== 'undefined' ? self : this, function () {
+const DateFormatter = (() => {
     var DateFormatter, $h
     /**
      * Global helper object
@@ -716,4 +699,6 @@
         },
     }
     return DateFormatter
-})
+})()
+
+export default DateFormatter

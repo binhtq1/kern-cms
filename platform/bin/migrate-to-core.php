@@ -11,6 +11,11 @@ try {
     if (! $project || ! is_file($project.'/storage/installed') || ! is_file($project.'/.env')) {
         throw new RuntimeException('Select an installed 0.1.0 website with --project=/absolute/path.');
     }
+    $versionPath = __DIR__.'/../core/base/resources/version.json';
+    $targetVersion = json_decode(file_get_contents($versionPath), true, flags: JSON_THROW_ON_ERROR)['version'] ?? '';
+    if (! is_string($targetVersion) || ! preg_match('/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/', $targetVersion)) {
+        throw new RuntimeException('Use a built runtime archive with a stable target version.');
+    }
     $manifestPath = $project.'/composer.json';
     if (is_link($manifestPath)) {
         throw new RuntimeException('The project composer.json must not be a symlink.');
@@ -49,8 +54,14 @@ try {
             $conflicts[] = $relative;
         }
         if (! is_file(__DIR__.'/../core/base/resources/site-template/'.$relative)) {
-            throw new RuntimeException('Use the migration tool from the built 0.2.0 runtime archive.');
+            throw new RuntimeException('Use the migration tool from the built runtime archive.');
         }
+    }
+    $memberEntry = 'resources/js/member.tsx';
+    $memberTemplate = __DIR__.'/../core/base/resources/site-template/'.$memberEntry;
+    $addMemberEntry = ! file_exists($project.'/'.$memberEntry) && is_file($memberTemplate);
+    if (is_link($project.'/'.$memberEntry)) {
+        $conflicts[] = $memberEntry;
     }
     if ($conflicts) {
         throw new RuntimeException("Legacy core or build configuration customizations detected; no project files were changed. Move these to site code, configuration or overrides first:\n".implode("\n", array_slice(array_unique($conflicts), 0, 30)));
@@ -78,7 +89,7 @@ try {
             unset($manifest['require'][$module['name']]);
         }
     }
-    $manifest['require']['binhtq1/kern-core'] = '^0.2.0';
+    $manifest['require']['binhtq1/kern-core'] = '^'.$targetVersion;
     ksort($manifest['require']);
     foreach ($manifest['repositories'] ?? [] as $key => $repository) {
         if (($repository['type'] ?? null) === 'path' && in_array($repository['url'] ?? '', ['platform/core', 'platform/packages/*'], true)) {
@@ -109,6 +120,9 @@ try {
             throw new RuntimeException('Cannot back up '.$relative);
         }
     }
+    if ($addMemberEntry) {
+        $updates[$memberEntry] = file_get_contents($memberTemplate);
+    }
     foreach ($updates as $relative => $content) {
         $destination = $project.'/'.$relative;
         $temporary = $destination.'.kern-'.bin2hex(random_bytes(4));
@@ -120,7 +134,11 @@ try {
     fwrite(STDOUT, "Composer configuration converted. Backup: $directory\nOld runtime files and all site customizations were retained.\nNext: composer update binhtq1/kern-core 'kern/*' --with-all-dependencies\nThen: php artisan cms:upgrade\n");
 } catch (Throwable $exception) {
     foreach ($applied as $relative) {
-        copy($directory.'/'.$relative, $project.'/'.$relative);
+        if (is_file($directory.'/'.$relative)) {
+            copy($directory.'/'.$relative, $project.'/'.$relative);
+        } else {
+            unlink($project.'/'.$relative);
+        }
     }
     fwrite(STDERR, $exception->getMessage()."\n");
     exit(1);

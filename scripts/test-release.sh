@@ -31,6 +31,11 @@ composer create-project binhtq1/kern-cms "$project" 0.1.0 --no-interaction --pre
 php "$project/scripts/check-project.php" magazine
 (
   cd "$project"
+  php artisan cms:plugin:activate contact --no-interaction
+)
+php "$source_root/tests/fixtures/upgrade-stock-frontend.php" capture "$project" "$work/legacy-stock.json"
+(
+  cd "$project"
   php "$source_root/tests/fixtures/upgrade-website.php" seed
   cp platform/core/base/helpers/common.php "$work/legacy-common.php"
   cp composer.json "$work/legacy-composer.json"
@@ -51,10 +56,30 @@ php "$project/scripts/check-project.php" magazine
   php "$work/runtime-tool/bin/migrate-to-core.php" --project="$project"
   composer config repositories.core "$core_repository"
   composer update binhtq1/kern-core 'kern/*' --with-all-dependencies --minimal-changes --no-interaction --prefer-dist
+  if php artisan cms:upgrade --check > "$work/legacy-frontend-guard.log" 2>&1; then
+    echo 'Old site-owned jQuery modules must be rejected before the runtime upgrade.' >&2; exit 1
+  fi
+  if ! grep -Fq 'Site-owned frontend code still requires jQuery' "$work/legacy-frontend-guard.log"; then
+    cat "$work/legacy-frontend-guard.log" >&2
+    echo 'The expected site-owned frontend guard was not the cause of rejection.' >&2; exit 1
+  fi
+  php "$source_root/tests/fixtures/upgrade-website.php" verify-blocked "$version"
+  cp platform/plugins/contact/resources/js/contact-public.js "$work/legacy-contact.js"
+  printf '\n// Customer customization to a stock module\n' >> platform/plugins/contact/resources/js/contact-public.js
+  cp platform/plugins/contact/resources/js/contact-public.js "$work/legacy-contact-custom.js"
+  if php "$source_root/tests/fixtures/upgrade-stock-frontend.php" apply "$project" "$work/legacy-stock.json" "$artifacts/kern-cms-$version.zip" > "$work/stock-frontend-conflict.log" 2>&1; then
+    echo 'Updating customized stock frontend files must be rejected.' >&2; exit 1
+  fi
+  if ! grep -Fq 'Customized stock frontend files conflict' "$work/stock-frontend-conflict.log"; then
+    cat "$work/stock-frontend-conflict.log" >&2; exit 1
+  fi
+  cmp platform/plugins/contact/resources/js/contact-public.js "$work/legacy-contact-custom.js"
+  cp "$work/legacy-contact.js" platform/plugins/contact/resources/js/contact-public.js
+  php "$source_root/tests/fixtures/upgrade-stock-frontend.php" apply "$project" "$work/legacy-stock.json" "$artifacts/kern-cms-$version.zip"
   php artisan cms:upgrade --check
   php artisan cms:upgrade
-  php "$source_root/tests/fixtures/upgrade-website.php" verify
+  php "$source_root/tests/fixtures/upgrade-website.php" verify "$version"
   php artisan cms:upgrade
-  php "$source_root/tests/fixtures/upgrade-website.php" verify
+  php "$source_root/tests/fixtures/upgrade-website.php" verify "$version"
 )
 printf 'Release and upgrade integration tests passed. Disposable fixtures: %s\n' "$work"

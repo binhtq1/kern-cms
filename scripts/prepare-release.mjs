@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { assertMemberAssets } from './assert-member-assets.mjs'
 
 const [version, destination] = process.argv.slice(2)
 const root = process.cwd()
@@ -41,6 +42,7 @@ function checkManifest(directory) {
 }
 
 checkManifest('public/build/admin')
+assertMemberAssets(root, JSON.parse(readFileSync('public/build/admin/manifest.json', 'utf8')))
 const registry = 'public/build/admin/admin-registry.json'
 if (!existsSync(registry)) fail(`Missing admin registry: ${registry}`)
 JSON.parse(readFileSync(registry, 'utf8'))

@@ -104,7 +104,6 @@
 
 @if ($form->getValidatorClass())
     @if ($form->isUseInlineJs())
-        {!! Assets::scriptToHtml('jquery') !!}
         {!! Assets::scriptToHtml('form-validation') !!}
         {!! $form->renderValidatorJs() !!}
     @else

@@ -74,7 +74,7 @@ class HookServiceProvider extends ServiceProvider
         if (! AdminHelper::isInAdmin(true)) {
             Assets::addStylesDirectly('vendor/core/plugins/custom-field/css/custom-field.css')
                 ->addScriptsDirectly('vendor/core/plugins/custom-field/js/use-custom-fields.js')
-                ->addScripts('jquery-ui');
+                ->addScripts('sortable');
         }
 
         CustomField::renderAssets();

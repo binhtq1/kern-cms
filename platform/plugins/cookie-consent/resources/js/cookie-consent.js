@@ -1,56 +1,45 @@
-'use strict'
-
-$(() => {
-    window.kernCookieConsent = (function () {
-        const COOKIE_VALUE = 1
-        const COOKIE_NAME = $('div[data-site-cookie-name]').data('site-cookie-name')
-        const COOKIE_DOMAIN = $('div[data-site-cookie-domain]').data('site-cookie-domain')
-        const COOKIE_LIFETIME = $('div[data-site-cookie-lifetime]').data('site-cookie-lifetime')
-        const SESSION_SECURE = $('div[data-site-session-secure]').data('site-session-secure')
-
-        const $cookieDialog = $('.js-cookie-consent')
-
-        $cookieDialog.addClass('cookie-consent--visible')
-
-        function consentWithCookies() {
-            setCookie(COOKIE_NAME, COOKIE_VALUE, COOKIE_LIFETIME)
-            hideCookieDialog()
-        }
-
-        function cookieExists(name) {
-            return document.cookie.split('; ').indexOf(name + '=' + COOKIE_VALUE) !== -1
-        }
-
-        function hideCookieDialog() {
-            $cookieDialog.hide()
-        }
-
-        function setCookie(name, value, expirationInDays) {
-            const date = new Date()
-            date.setTime(date.getTime() + expirationInDays * 24 * 60 * 60 * 1000)
-            document.cookie =
-                name +
-                '=' +
-                value +
-                ';expires=' +
-                date.toUTCString() +
-                ';domain=' +
-                COOKIE_DOMAIN +
-                ';path=/' +
-                SESSION_SECURE
-        }
-
-        if (cookieExists(COOKIE_NAME)) {
-            hideCookieDialog()
-        }
-
-        $(document).on('click', '.js-cookie-consent-agree', function () {
-            consentWithCookies()
+function initializeCookieConsent() {
+    const settings = document.querySelector('div[data-site-cookie-name]')
+    if (!settings) return
+    const {
+        siteCookieName: name,
+        siteCookieDomain: domain,
+        siteCookieLifetime: lifetime,
+        siteSessionSecure: secure,
+    } = settings.dataset
+    const dialogs = [...document.querySelectorAll('.js-cookie-consent')]
+    const hideCookieDialog = () =>
+        dialogs.forEach((dialog) => {
+            dialog.hidden = true
+            dialog.style.display = 'none'
         })
-
-        return {
-            consentWithCookies: consentWithCookies,
-            hideCookieDialog: hideCookieDialog,
+    const consentWithCookies = () => {
+        const expires = new Date(Date.now() + Number(lifetime) * 86400000).toUTCString()
+        document.cookie =
+            encodeURIComponent(name) +
+            '=1;expires=' +
+            expires +
+            (domain ? ';domain=' + domain : '') +
+            ';path=/' +
+            (secure || '') +
+            ';SameSite=Lax'
+        hideCookieDialog()
+    }
+    dialogs.forEach((dialog) => {
+        dialog.classList.add('cookie-consent--visible')
+        dialog.setAttribute('aria-label', dialog.getAttribute('aria-label') || 'Cookie consent')
+    })
+    if (document.cookie.split(';').some((cookie) => cookie.trim() === encodeURIComponent(name) + '=1'))
+        hideCookieDialog()
+    document.addEventListener('click', (event) => {
+        if (event.target.closest('.js-cookie-consent-agree')) {
+            event.preventDefault()
+            consentWithCookies()
         }
-    })()
-})
+    })
+    window.kernCookieConsent = { consentWithCookies, hideCookieDialog }
+}
+
+if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', initializeCookieConsent, { once: true })
+else initializeCookieConsent()
