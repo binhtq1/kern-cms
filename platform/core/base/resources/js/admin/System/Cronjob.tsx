@@ -12,6 +12,7 @@ import {
 import { Button } from "@admin/components/ui/button";
 import { notify } from "@admin/components/toast";
 import { useAdminTranslation } from "@admin/lib/translate";
+import { copyToClipboard } from "@admin/lib/clipboard";
 
 export default function Cronjob({
     title,
@@ -43,7 +44,7 @@ export default function Cronjob({
               : Clock;
     async function copy() {
         try {
-            await navigator.clipboard.writeText(command);
+            await copyToClipboard(command);
             setCopied(true);
             notify(t("Copied"));
         } catch {

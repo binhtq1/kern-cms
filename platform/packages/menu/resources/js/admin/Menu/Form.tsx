@@ -20,6 +20,7 @@ import { useAdminTranslation } from "@admin/lib/translate";
 import { usePointerSort } from "@admin/lib/use-pointer-sort";
 import { useUnsavedChanges } from "@admin/lib/use-unsaved-changes";
 import { cn } from "@admin/lib/utils";
+import { createUuid } from "@admin/lib/uuid";
 import { Head, Link, useForm } from "@inertiajs/react";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -201,7 +202,7 @@ export default function MenuForm({
         if (!selectedReferences.length) return;
         const added = referenceMenuItems(
             selectedReferences,
-            () => crypto.randomUUID(),
+            createUuid,
             iconImageEnabled,
         );
         for (const node of added)
@@ -212,7 +213,7 @@ export default function MenuForm({
     }
     function add() {
         const node: MenuItem = {
-            key: crypto.randomUUID(),
+            key: createUuid(),
             parent: "",
             title: linkTitle.trim(),
             url: linkUrl.trim(),

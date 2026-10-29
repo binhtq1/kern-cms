@@ -22,6 +22,7 @@ import { LoadingIndicator } from "@admin/components/loading-indicator";
 import { Dialog } from "@admin/components/ui/dialog";
 import { notify } from "@admin/components/toast";
 import { useAdminTranslation } from "@admin/lib/translate";
+import { copyToClipboard } from "@admin/lib/clipboard";
 
 type EnvironmentRow = {
     key: string;
@@ -95,7 +96,7 @@ export default function Information({
     ].join("\n");
     async function copy(text: string) {
         try {
-            await navigator.clipboard.writeText(text);
+            await copyToClipboard(text);
             notify(t("Copied"));
         } catch {
             notify(

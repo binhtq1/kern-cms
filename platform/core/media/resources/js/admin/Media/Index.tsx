@@ -5,6 +5,7 @@ import { Button } from "@admin/components/ui/button";
 import { Card } from "@admin/components/ui/card";
 import AdminLayout from "@admin/layouts/admin-layout";
 import { useAdminTranslation } from "@admin/lib/translate";
+import { copyToClipboard } from "@admin/lib/clipboard";
 import { cn } from "@admin/lib/utils";
 import axios from "axios";
 import { ChevronRight } from "lucide-react";
@@ -154,7 +155,7 @@ export default function Index({
     const [shareType, setShareType] = useState<MediaShareType>("url");
     async function copyText(value: string) {
         try {
-            await navigator.clipboard.writeText(value);
+            await copyToClipboard(value);
             notify(t("Copied"));
         } catch {
             notify(

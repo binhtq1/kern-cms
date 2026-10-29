@@ -2,6 +2,7 @@ import { notify } from "@admin/components/toast";
 import { useAdminTranslation } from "@admin/lib/translate";
 import { useUploadProgress } from "@admin/hooks/use-upload-progress";
 import { chunkUploadPercent } from "@admin/lib/upload-progress";
+import { createUuid } from "@admin/lib/uuid";
 import axios from "axios";
 import {
     useEffect,
@@ -109,7 +110,7 @@ export function useMediaUploads({
                             ? Math.max(1, uploadOptions.chunkSize)
                             : Math.max(1, file.size);
                         const chunks = Math.max(1, Math.ceil(file.size / size));
-                        const uuid = crypto.randomUUID();
+                        const uuid = createUuid();
                         for (let chunk = 0; chunk < chunks; chunk++) {
                             const data = new FormData();
                             data.append(

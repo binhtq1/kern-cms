@@ -20,6 +20,7 @@ import {
 } from "@admin/components/ui/table";
 import AdminLayout from "@admin/layouts/admin-layout";
 import { useAdminTranslation } from "@admin/lib/translate";
+import { createUuid } from "@admin/lib/uuid";
 import { Head, router } from "@inertiajs/react";
 import axios from "axios";
 import {
@@ -139,7 +140,7 @@ export default function Import({
         try {
             setStage(t("Uploading file"));
             let filename = "";
-            const uuid = crypto.randomUUID();
+            const uuid = createUuid();
             const size = 1024 * 1024;
             const chunks = Math.max(1, Math.ceil(file.size / size));
             for (let index = 0; index < chunks; index++) {

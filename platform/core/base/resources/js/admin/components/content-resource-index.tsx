@@ -5,6 +5,7 @@ import { useAdminDate } from "@admin/lib/date";
 import { tableActionUrl } from "@admin/lib/table-query";
 import { useAdminTranslation } from "@admin/lib/translate";
 import { adminQueryOptions } from "@admin/lib/utils";
+import { copyToClipboard } from "@admin/lib/clipboard";
 import type { Option } from "@admin/types";
 import { Head, Link, router } from "@inertiajs/react";
 import { Copy, Files, Pencil, Plus, Trash2 } from "lucide-react";
@@ -560,7 +561,7 @@ export function ContentResourceIndex({
                                                         )}
                                                         onClick={async () => {
                                                             try {
-                                                                await navigator.clipboard.writeText(
+                                                                await copyToClipboard(
                                                                     item.shortcode ??
                                                                         item.alias ??
                                                                         "",
