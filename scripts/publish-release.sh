@@ -22,5 +22,11 @@ if [[ -z "$existing" ]]; then
   git -c http.https://github.com/.extraheader= push --atomic "$remote" "${refs[@]}"
 fi
 if ! gh release view "v$version" --repo "$repository" >/dev/null 2>&1; then
-  gh release create "v$version" --repo "$repository" --verify-tag --title "$package $version" --notes "Kern CMS $version. Runtime upgrades: composer update binhtq1/kern-core --with-all-dependencies, then php artisan cms:upgrade." "$artifacts/$package-$version.zip" "$artifacts/SHA256SUMS"
+  assets=("$artifacts/$package-$version.zip" "$artifacts/SHA256SUMS")
+  notes="Kern CMS $version. Runtime upgrades: composer update binhtq1/kern-core --with-all-dependencies, then php artisan cms:upgrade."
+  if [[ "$package" == kern-cms ]]; then
+    assets+=("$artifacts/kern-upgrade.php")
+    notes+=" For an installed 0.1.0 website, download kern-upgrade.php and run: php kern-upgrade.php --to=$version --check; then php kern-upgrade.php --to=$version. The tool backs up code and database and stops on conflicting customizations."
+  fi
+  gh release create "v$version" --repo "$repository" --verify-tag --title "$package $version" --notes "$notes" "${assets[@]}"
 fi

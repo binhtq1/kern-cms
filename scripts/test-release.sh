@@ -4,8 +4,15 @@ version=${1:?Version required}
 artifacts=${2:?Absolute artifact directory required}
 source_root=$(pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/kern-release-tests.XXXXXXXX")
-mkdir -p "$work/runtime-tool"
-unzip -q "$artifacts/kern-core-$version.zip" -d "$work/runtime-tool"
+tool_artifacts="$work/upgrader-artifacts"
+mkdir -p "$tool_artifacts"
+ln -s "$artifacts/kern-core-$version.zip" "$tool_artifacts/kern-core-$version.zip"
+ln -s "$artifacts/kern-cms-$version.zip" "$tool_artifacts/kern-cms-$version.zip"
+if [[ -f "$artifacts/kern-cms-0.1.0.zip" ]]; then
+  cp "$artifacts/kern-cms-0.1.0.zip" "$tool_artifacts/kern-cms-0.1.0.zip"
+else
+  curl --fail --location --silent --show-error https://github.com/binhtq1/kern-cms/releases/download/v0.1.0/kern-cms-0.1.0.zip --output "$tool_artifacts/kern-cms-0.1.0.zip"
+fi
 core_repository=$(php -r '$zip = new ZipArchive; $zip->open($argv[1]); $package = json_decode($zip->getFromName("composer.json"), true); $ref = trim(file_get_contents($argv[3])); echo json_encode(["type"=>"package","package"=>[...$package,"version"=>$argv[2],"source"=>["type"=>"git","url"=>"https://github.com/binhtq1/kern-core.git","reference"=>$ref],"dist"=>["type"=>"zip","url"=>"file://".$argv[1],"reference"=>$ref,"shasum"=>hash_file("sha1", $argv[1])]]]);' "$artifacts/kern-core-$version.zip" "$version" "$artifacts/core-reference")
 starter_repository=$(php -r 'echo json_encode(["type"=>"package","package"=>["name"=>"binhtq1/kern-cms","version"=>$argv[1],"dist"=>["type"=>"zip","url"=>"file://".$argv[2],"reference"=>hash_file("sha1", $argv[2]),"shasum"=>hash_file("sha1", $argv[2])]]]);' "$version" "$artifacts/kern-cms-$version.zip")
 for mode in default no-dev; do
@@ -32,54 +39,44 @@ php "$project/scripts/check-project.php" magazine
 (
   cd "$project"
   php artisan cms:plugin:activate contact --no-interaction
+  php artisan cms:plugin:activate member --no-interaction
 )
-php "$source_root/tests/fixtures/upgrade-stock-frontend.php" capture "$project" "$work/legacy-stock.json"
 (
   cd "$project"
   php "$source_root/tests/fixtures/upgrade-website.php" seed
+  composer config repositories.core "$core_repository"
   cp platform/core/base/helpers/common.php "$work/legacy-common.php"
   cp composer.json "$work/legacy-composer.json"
   printf '\n// Site customization in the old core\n' >> platform/core/base/helpers/common.php
-  if php "$work/runtime-tool/bin/migrate-to-core.php" --project="$project" --check > "$work/legacy-conflict.log" 2>&1; then
+  if php "$artifacts/kern-upgrade.php" --to="$version" --artifacts="$tool_artifacts" --check > "$work/legacy-conflict.log" 2>&1; then
     echo 'Legacy core customizations must be rejected.' >&2; exit 1
   fi
   cmp composer.json "$work/legacy-composer.json"
   cp "$work/legacy-common.php" platform/core/base/helpers/common.php
   cp vite.config.ts "$work/legacy-vite.config.ts"
   printf '\n// Customer build configuration\n' >> vite.config.ts
-  if php "$work/runtime-tool/bin/migrate-to-core.php" --project="$project" --check > "$work/build-conflict.log" 2>&1; then
+  if php "$artifacts/kern-upgrade.php" --to="$version" --artifacts="$tool_artifacts" --check > "$work/build-conflict.log" 2>&1; then
     echo 'Customized build configuration must be rejected.' >&2; exit 1
   fi
   cmp composer.json "$work/legacy-composer.json"
   cp "$work/legacy-vite.config.ts" vite.config.ts
-  php "$work/runtime-tool/bin/migrate-to-core.php" --project="$project" --check
-  php "$work/runtime-tool/bin/migrate-to-core.php" --project="$project"
-  composer config repositories.core "$core_repository"
-  composer update binhtq1/kern-core 'kern/*' --with-all-dependencies --minimal-changes --no-interaction --prefer-dist
-  if php artisan cms:upgrade --check > "$work/legacy-frontend-guard.log" 2>&1; then
-    echo 'Old site-owned jQuery modules must be rejected before the runtime upgrade.' >&2; exit 1
-  fi
-  if ! grep -Fq 'Site-owned frontend code still requires jQuery' "$work/legacy-frontend-guard.log"; then
-    cat "$work/legacy-frontend-guard.log" >&2
-    echo 'The expected site-owned frontend guard was not the cause of rejection.' >&2; exit 1
-  fi
-  php "$source_root/tests/fixtures/upgrade-website.php" verify-blocked "$version"
   cp platform/plugins/contact/resources/js/contact-public.js "$work/legacy-contact.js"
   printf '\n// Customer customization to a stock module\n' >> platform/plugins/contact/resources/js/contact-public.js
   cp platform/plugins/contact/resources/js/contact-public.js "$work/legacy-contact-custom.js"
-  if php "$source_root/tests/fixtures/upgrade-stock-frontend.php" apply "$project" "$work/legacy-stock.json" "$artifacts/kern-cms-$version.zip" > "$work/stock-frontend-conflict.log" 2>&1; then
+  if php "$artifacts/kern-upgrade.php" --to="$version" --artifacts="$tool_artifacts" --check > "$work/stock-frontend-conflict.log" 2>&1; then
     echo 'Updating customized stock frontend files must be rejected.' >&2; exit 1
   fi
-  if ! grep -Fq 'Customized stock frontend files conflict' "$work/stock-frontend-conflict.log"; then
+  if ! grep -Fq 'Customized stock files conflict' "$work/stock-frontend-conflict.log"; then
     cat "$work/stock-frontend-conflict.log" >&2; exit 1
   fi
   cmp platform/plugins/contact/resources/js/contact-public.js "$work/legacy-contact-custom.js"
+  cmp composer.json "$work/legacy-composer.json"
   cp "$work/legacy-contact.js" platform/plugins/contact/resources/js/contact-public.js
-  php "$source_root/tests/fixtures/upgrade-stock-frontend.php" apply "$project" "$work/legacy-stock.json" "$artifacts/kern-cms-$version.zip"
-  php artisan cms:upgrade --check
-  php artisan cms:upgrade
-  php "$source_root/tests/fixtures/upgrade-website.php" verify "$version"
-  php artisan cms:upgrade
-  php "$source_root/tests/fixtures/upgrade-website.php" verify "$version"
+  php "$artifacts/kern-upgrade.php" --to="$version" --artifacts="$tool_artifacts" --check
+  php "$source_root/tests/fixtures/upgrade-website.php" verify-original
+  php "$artifacts/kern-upgrade.php" --to="$version" --artifacts="$tool_artifacts"
+  php "$source_root/tests/fixtures/upgrade-website.php" verify-tool "$version"
+  php "$artifacts/kern-upgrade.php" --to="$version" --artifacts="$tool_artifacts"
+  php "$source_root/tests/fixtures/upgrade-website.php" verify-tool "$version"
 )
 printf 'Release and upgrade integration tests passed. Disposable fixtures: %s\n' "$work"
