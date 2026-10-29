@@ -1,0 +1,17 @@
+{
+  "platform/themes/magazine/assets/css/style.css": {
+    "file": "assets/style-DFYk3OXL.css",
+    "src": "platform/themes/magazine/assets/css/style.css",
+    "isEntry": true,
+    "name": "style",
+    "names": [
+      "style.css"
+    ]
+  },
+  "platform/themes/magazine/assets/js/app.js": {
+    "file": "assets/app-BvM-Cwqa.js",
+    "name": "app",
+    "src": "platform/themes/magazine/assets/js/app.js",
+    "isEntry": true
+  }
+}
