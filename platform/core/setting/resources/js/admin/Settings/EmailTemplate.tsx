@@ -13,6 +13,7 @@ import { Button } from "@admin/components/ui/button";
 import { Card, CardContent } from "@admin/components/ui/card";
 import { Dialog } from "@admin/components/ui/dialog";
 import { useAdminTranslation } from "@admin/lib/translate";
+import { copyToClipboard } from "@admin/lib/clipboard";
 export default function EmailTemplate({
     title,
     emailNavigation,
@@ -70,7 +71,7 @@ export default function EmailTemplate({
     }
     async function copySnippet(snippet: string) {
         try {
-            await navigator.clipboard.writeText(snippet);
+            await copyToClipboard(snippet);
             notify(t("Copied"));
         } catch {
             notify(

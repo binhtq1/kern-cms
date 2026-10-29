@@ -19,6 +19,7 @@ import { useAdminTranslation } from "@admin/lib/translate";
 import { usePointerSort } from "@admin/lib/use-pointer-sort";
 import { useUnsavedChanges } from "@admin/lib/use-unsaved-changes";
 import { cn } from "@admin/lib/utils";
+import { createUuid } from "@admin/lib/uuid";
 import { Head } from "@inertiajs/react";
 import {
     ArrowDown,
@@ -88,7 +89,7 @@ export default function Widgets({
             : null;
         const item = definition
             ? {
-                  key: crypto.randomUUID(),
+                  key: createUuid(),
                   id: definition.id,
                   data: structuredClone(definition.defaults),
               }
@@ -270,7 +271,7 @@ export default function Widgets({
                                                 [
                                                     ...group.items,
                                                     {
-                                                        key: crypto.randomUUID(),
+                                                        key: createUuid(),
                                                         id: widget.id,
                                                         data: structuredClone(
                                                             widget.defaults,
