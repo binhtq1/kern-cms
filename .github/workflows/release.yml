@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Stable version without v (for example, 0.2.0)"
+        description: "Stable version without v (for example, 0.3.1)"
         required: true
         type: string
       publish:
@@ -43,7 +43,7 @@ jobs:
           composer validate --strict
           composer install --prefer-dist --no-interaction --no-progress --no-scripts
           npm ci --no-audit
-          node --test tests/ReleasePackage.test.mjs tests/CorePackage.test.mjs
+          node --test tests/ReleasePackage.test.mjs tests/CorePackage.test.mjs tests/UpgraderPackage.test.mjs
           npm run build
           npm run test:assets
           bash scripts/build-release.sh "$RELEASE_VERSION" "$RUNNER_TEMP/kern-release" "$RUNNER_TEMP/kern-artifacts"

@@ -118,7 +118,7 @@ jobs:
         if: matrix.database == 'sqlite'
         run: |
           npm run test:themes
-          node --test tests/ReleasePackage.test.mjs tests/CorePackage.test.mjs
+          node --test tests/ReleasePackage.test.mjs tests/CorePackage.test.mjs tests/UpgraderPackage.test.mjs
       - name: Build public site assets
         if: matrix.database == 'sqlite'
         run: |

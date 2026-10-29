@@ -52,6 +52,8 @@ if ($mode === 'seed') {
         $table->string('value');
     });
     DB::table('customer_records')->insert(['value' => 'customer data']);
+    $memberId = DB::table('members')->insertGetId(['first_name' => 'Existing', 'last_name' => 'Member', 'email' => 'existing-member@example.test', 'password' => password_hash('Existing-member-fixture-2026', PASSWORD_BCRYPT), 'confirmed_at' => now(), 'description' => 'Customer member profile']);
+    $memberPostId = DB::table('posts')->insertGetId(['name' => 'Existing member post', 'content' => '<p>Customer member content</p>', 'author_id' => $memberId, 'author_type' => 'Kern\\Member\\Models\\Member', 'status' => 'draft']);
     File::append(theme_path('magazine/layouts/default.blade.php'), '<!-- customer theme customization -->');
     foreach (array_slice($paths, 3) as $path) {
         File::ensureDirectoryExists(dirname(base_path($path)));
@@ -68,7 +70,7 @@ if ($mode === 'seed') {
     foreach ($paths as $path) {
         $hashes[$path] = hash_file('sha256', base_path($path));
     }
-    File::put(storage_path('upgrade-fixture.json'), json_encode(['hashes' => $hashes, 'user' => array_intersect_key(User::query()->where('username', 'kernadmin')->firstOrFail()->getAttributes(), array_flip(['id', 'username', 'email', 'password', 'super_user', 'permissions'])), 'migrations' => DB::table('migrations')->count()], JSON_THROW_ON_ERROR));
+    File::put(storage_path('upgrade-fixture.json'), json_encode(['hashes' => $hashes, 'runtime_path' => core_path(), 'runtime_version' => get_cms_version(), 'member' => (array) DB::table('members')->where('id', $memberId)->first(), 'member_post' => (array) DB::table('posts')->where('id', $memberPostId)->first(), 'user' => array_intersect_key(User::query()->where('username', 'kernadmin')->firstOrFail()->getAttributes(), array_flip(['id', 'username', 'email', 'password', 'super_user', 'permissions'])), 'migrations' => DB::table('migrations')->count()], JSON_THROW_ON_ERROR));
     echo "Seeded a customized 0.1.0 website.\n";
 } else {
     $fixture = json_decode(File::get(storage_path('upgrade-fixture.json')), true, flags: JSON_THROW_ON_ERROR);
@@ -78,13 +80,46 @@ if ($mode === 'seed') {
     verifyUpgrade(DB::table('pages')->where('name', 'Customer page')->value('content') === '<p>Retained content</p>', 'Customer page lost.');
     verifyUpgrade(DB::table('settings')->where('key', 'customer_setting')->value('value') === 'preserved', 'Setting lost.');
     verifyUpgrade(DB::table('customer_records')->value('value') === 'customer data', 'Custom table lost.');
-    verifyUpgrade(Schema::hasColumn('customer_records', 'new_optional') === ($mode !== 'verify-blocked'), 'Pending migration state did not match the upgrade stage.');
+    $member = (array) DB::table('members')->where('id', $fixture['member']['id'])->first();
+    $memberPost = (array) DB::table('posts')->where('id', $fixture['member_post']['id'])->first();
+    verifyUpgrade(array_intersect_key($member, $fixture['member']) == $fixture['member'], 'Existing member account or profile changed.');
+    verifyUpgrade(array_intersect_key($memberPost, $fixture['member_post']) == $fixture['member_post'], 'Existing member post or ownership changed.');
+    verifyUpgrade(Schema::hasColumn('customer_records', 'new_optional') === (! in_array($mode, ['verify-blocked', 'verify-original'], true)), 'Pending migration state did not match the upgrade stage.');
     verifyUpgrade(array_intersect_key(User::query()->where('username', 'kernadmin')->firstOrFail()->getAttributes(), array_flip(['id', 'username', 'email', 'password', 'super_user', 'permissions'])) == $fixture['user'], 'Administrator changed.');
     verifyUpgrade(view('core/base::site-probe')->render() === 'customer customization', 'View override not loaded.');
     verifyUpgrade(config('site.custom') === 'preserved' && SiteCustomization::VALUE === 'preserved', 'Site PHP customization not loaded.');
     verifyUpgrade(app()->bound('site.custom.loaded') && is_plugin_active('site-custom'), 'Custom plugin not loaded.');
-    verifyUpgrade(get_cms_version() === $expectedVersion && str_contains(core_path(), '/vendor/binhtq1/kern-core/'), 'Runtime is not loaded from Composer.');
     verifyUpgrade(! app()->isDownForMaintenance(), 'Website is still in maintenance mode.');
+    if ($mode === 'verify-original') {
+        verifyUpgrade(get_cms_version() === $fixture['runtime_version'] && core_path() === $fixture['runtime_path'], 'Preflight changed the legacy runtime.');
+        verifyUpgrade(DB::table('migrations')->count() === $fixture['migrations'], 'Preflight changed migrations.');
+        verifyUpgrade(! is_dir(storage_path('kern-upgrader')), 'Preflight wrote a website backup.');
+        echo "Standalone --check retained the original code, data and customizations.\n";
+        exit(0);
+    }
+    verifyUpgrade(get_cms_version() === $expectedVersion && str_contains(core_path(), '/vendor/binhtq1/kern-core/'), 'Runtime is not loaded from Composer.');
+    if ($mode === 'verify-tool') {
+        $backups = glob(storage_path('kern-upgrader/*'), GLOB_ONLYDIR);
+        verifyUpgrade(count($backups) === 1, 'The standalone upgrader must retain one backup.');
+        $backup = $backups[0];
+        $status = json_decode(File::get($backup.'/status.json'), true, flags: JSON_THROW_ON_ERROR);
+        verifyUpgrade($status['status'] === 'completed' && $status['backup_complete'] === true, 'The standalone backup was not completed.');
+        $zip = new ZipArchive;
+        verifyUpgrade($zip->open($backup.'/website.zip') === true, 'The original website backup is missing.');
+        foreach ($fixture['hashes'] as $path => $hash) {
+            verifyUpgrade(hash('sha256', $zip->getFromName($path)) === $hash, 'Original backup lost a site file: '.$path);
+        }
+        $originalComposer = json_decode($zip->getFromName('composer.json'), true, flags: JSON_THROW_ON_ERROR);
+        verifyUpgrade(isset($originalComposer['require']['kern/platform']) && ! isset($originalComposer['require']['binhtq1/kern-core']), 'The backup must contain the pre-conversion Composer configuration.');
+        $zip->close();
+        $database = new PDO('sqlite:'.$backup.'/database.sqlite');
+        verifyUpgrade($database->query('SELECT value FROM customer_records')->fetchColumn() === 'customer data', 'The original database snapshot lost customer data.');
+        verifyUpgrade($database->query("SELECT email FROM members WHERE email = 'existing-member@example.test'")->fetchColumn() === 'existing-member@example.test', 'The original snapshot lost the member account.');
+        $columns = $database->query('PRAGMA table_info(customer_records)')->fetchAll(PDO::FETCH_ASSOC);
+        verifyUpgrade(! in_array('new_optional', array_column($columns, 'name'), true), 'The database snapshot must precede migrations.');
+        verifyUpgrade((int) $database->query('SELECT COUNT(*) FROM migrations')->fetchColumn() === $fixture['migrations'], 'The database snapshot must preserve the old migration state.');
+        echo "Verified the standalone code backup and pre-migration database snapshot.\n";
+    }
     if ($mode === 'verify-blocked') {
         verifyUpgrade(DB::table('migrations')->count() === $fixture['migrations'], 'A blocked upgrade changed migration state.');
         verifyUpgrade(! is_dir(storage_path('kern-upgrades')), 'A blocked upgrade created a snapshot.');

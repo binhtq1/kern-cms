@@ -55,4 +55,5 @@ composer --working-dir="$release_root" archive --format=zip --dir="$artifacts" -
   git tag "v$version"
   git bundle create "$artifacts/kern-cms-$version.bundle" "refs/tags/v$version"
 )
-(cd "$artifacts" && sha256sum "kern-core-$version.zip" "kern-cms-$version.zip" > SHA256SUMS)
+node scripts/build-upgrader.mjs "$version" "$artifacts"
+(cd "$artifacts" && sha256sum "kern-core-$version.zip" "kern-cms-$version.zip" kern-upgrade.php > SHA256SUMS)
