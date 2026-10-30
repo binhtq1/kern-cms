@@ -1,11 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "vite";
+import { resolve } from "node:path";
 
 test("extension factory preserves installed Tiptap order and legacy compatibility configuration", async () => {
     const server = await createServer({
         configFile: false,
-        resolve: { dedupe: ["@tiptap/core", "@tiptap/pm"] },
+        resolve: {
+            alias: {
+                "@admin": resolve("platform/core/base/resources/js/admin"),
+            },
+            dedupe: ["@tiptap/core", "@tiptap/pm"],
+        },
         logLevel: "silent",
         server: { middlewareMode: true, watch: null },
         appType: "custom",

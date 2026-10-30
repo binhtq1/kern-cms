@@ -1,4 +1,5 @@
 import type { Option } from "../types";
+import { attributeTokens } from "./shortcode-parser.ts";
 type ShortcodeField = {
     name: string;
     type: string;
@@ -30,12 +31,10 @@ export function readAttributes(
     ownerDocument: Pick<Document, "createElement"> = document,
 ): Record<string, string> {
     const attributes: Record<string, string> = {};
-    for (const match of code
-        .split("]")[0]
-        .matchAll(/([\w-]+)=(?:"([^"]*)"|'([^']*)')/g)) {
+    for (const token of attributeTokens(code)) {
         const decoder = ownerDocument.createElement("textarea");
-        decoder.innerHTML = match[2] ?? match[3] ?? "";
-        attributes[match[1]] = decoder.value;
+        decoder.innerHTML = token.value;
+        attributes[token.key.toLowerCase()] = decoder.value;
     }
     return attributes;
 }

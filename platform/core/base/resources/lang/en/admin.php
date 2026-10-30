@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'Configure' => 'Configure',
+    'Block actions' => 'Block actions',
+    'Shortcode source' => 'Shortcode source',
+    'Add text before' => 'Add text before',
+    'Add text after' => 'Add text after',
+    'This block has changed. Close this dialog and select it again.' => 'This block has changed. Close this dialog and select it again.',
     'Rows with locked fields cannot be moved or removed. You can edit the other fields or add a new row.' => 'Rows with locked fields cannot be moved or removed. You can edit the other fields or add a new row.',
     'Permalink' => 'Permalink',
     'Generate URL' => 'Generate URL',

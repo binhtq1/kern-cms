@@ -12,6 +12,11 @@ import {
     SearchHighlights,
 } from "./rich-editor-extensions";
 import { LegacyTableView } from "./rich-editor-table";
+import {
+    ShortcodeBlock,
+    ShortcodeDocument,
+    type ShortcodeBlockOptions,
+} from "./shortcode-block";
 
 const LegacyTableAttributes = Extension.create({
     name: "legacyTableAttributes",
@@ -50,9 +55,10 @@ const LegacyTableAttributes = Extension.create({
     },
 });
 
-export function createRichEditorExtensions() {
+export function createRichEditorExtensions(shortcodes?: ShortcodeBlockOptions) {
     return [
         StarterKit.configure({
+            ...(shortcodes ? { document: false as const } : {}),
             link: { openOnClick: false },
             heading: { levels: [1, 2, 3, 4, 5, 6] },
         }),
@@ -66,5 +72,8 @@ export function createRichEditorExtensions() {
         TextStyleKit,
         TextAlign.configure({ types: ["heading", "paragraph"] }),
         Youtube.configure({ nocookie: true }),
+        ...(shortcodes
+            ? [ShortcodeDocument, ShortcodeBlock.configure(shortcodes)]
+            : []),
     ];
 }

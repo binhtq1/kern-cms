@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'Configure' => 'Cấu hình',
+    'Block actions' => 'Thao tác với khối',
+    'Shortcode source' => 'Mã shortcode',
+    'Add text before' => 'Thêm văn bản phía trước',
+    'Add text after' => 'Thêm văn bản phía sau',
+    'This block has changed. Close this dialog and select it again.' => 'Khối này đã thay đổi. Hãy đóng hộp thoại và chọn lại khối.',
     'Rows with locked fields cannot be moved or removed. You can edit the other fields or add a new row.' => 'Không thể di chuyển hoặc xóa hàng có trường bị khóa. Bạn vẫn có thể sửa các trường khác hoặc thêm hàng mới.',
     'Permalink' => 'Đường dẫn tĩnh',
     'Generate URL' => 'Tạo đường dẫn',
