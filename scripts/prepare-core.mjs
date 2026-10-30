@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { assertMemberAssets } from './assert-member-assets.mjs'
+import { recordStockAssets } from './runtime-asset-manifest.mjs'
 
 const [version, destination] = process.argv.slice(2)
 if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version ?? '') || !destination) throw new Error('Usage: prepare-core.mjs X.Y.Z new-directory')
@@ -37,4 +38,5 @@ for (const path of ['vite.config.ts', 'tsconfig.json', 'resources/js/admin.tsx',
     }
 }
 writeFileSync(`${target}/core/base/resources/version.json`, JSON.stringify({ version }) + '\n')
+recordStockAssets(target, version)
 console.log(`Prepared binhtq1/kern-core ${version} in ${target}`)

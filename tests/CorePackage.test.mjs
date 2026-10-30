@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
+import { collectRuntimeAssets, mergeStockAssets } from '../scripts/runtime-asset-manifest.mjs'
 
 function fixture(t) {
     const directory = mkdtempSync(join(tmpdir(), 'kern-core-package-'))
@@ -49,6 +51,9 @@ test('core archive owns runtime code and admin assets and excludes website custo
     for (const path of ['composer.json', 'LICENSE', 'core/composer.json', 'packages/installer/public/style.css', 'public/build/admin/manifest.json', 'bin/migrate-to-core.php', 'core/base/resources/site-template/resources/js/member.tsx']) assert.ok(existsSync(join(target, path)), path)
     for (const path of ['core/.env', 'packages/installer/.env.local', 'plugins', 'themes', 'storage', 'public/build/admin/assets/entry.js.map']) assert.ok(!existsSync(join(target, path)), path)
     assert.equal(JSON.parse(readFileSync(join(target, 'core/base/resources/version.json'))).version, '0.2.0')
+    const stock = JSON.parse(readFileSync(join(target, 'core/base/resources/upgrade/stock-assets.json')))
+    assert.equal(stock.releases['0.2.0']['build/admin/assets/entry.js'], createHash('sha256').update('runtime').digest('hex'))
+    assert.equal(stock.releases['0.2.0']['vendor/core/packages/installer/style.css'], createHash('sha256').update('installer').digest('hex'))
 })
 
 test('starter archive depends on the immutable core commit and retains site-owned themes and plugins', t => {
@@ -134,4 +139,43 @@ test('member packaging validates lazy graph entries, CSS and emitted assets befo
     result = run()
     assert.equal(result.status, 0, result.stderr)
     for (const file of ['member.js', 'shared.js', 'shared.css', 'shared.svg', 'account.js', 'account.css']) assert.ok(existsSync(join(target, 'public/build/admin/assets', file)), file)
+})
+
+test('runtime packaging carries historical stock hashes and records every current managed asset', t => {
+    const { root, target, write } = fixture(t)
+    const previous = { format: 1, releases: { '0.3.2': { 'build/admin/manifest.json': 'a'.repeat(64) } } }
+    write('platform/core/base/resources/upgrade/stock-assets.json', JSON.stringify(previous))
+    write('platform/core/base/public/css/core.css', 'core css')
+    const result = spawnSync(process.execPath, [coreScript, '0.4.1', target], { cwd: root, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    const catalog = JSON.parse(readFileSync(join(target, 'core/base/resources/upgrade/stock-assets.json')))
+    assert.deepEqual(catalog.releases['0.3.2'], previous.releases['0.3.2'])
+    assert.deepEqual(catalog.releases['0.4.1'], collectRuntimeAssets(target))
+    assert.ok(catalog.releases['0.4.1']['vendor/core/core/base/css/core.css'])
+    assert.ok(!Object.keys(catalog.releases['0.4.1']).some(path => /plugins|themes|storage/.test(path)))
+
+    const priorPublished = { format: 1, releases: { ...previous.releases, '0.4.0': { 'build/admin/manifest.json': 'b'.repeat(64) } } }
+    const oldPath = join(root, 'published-stock.json')
+    writeFileSync(oldPath, JSON.stringify(priorPublished))
+    const merged = spawnSync(process.execPath, [resolve('scripts/runtime-asset-manifest.mjs'), join(target, 'core/base/resources/upgrade/stock-assets.json'), oldPath], { encoding: 'utf8' })
+    assert.equal(merged.status, 0, merged.stderr)
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(target, 'core/base/resources/upgrade/stock-assets.json'))).releases), ['0.3.2', '0.4.0', '0.4.1'])
+})
+
+test('stock history rejects conflicting published versions, invalid hashes and unsafe paths', () => {
+    const catalog = { format: 1, releases: { '0.3.2': { 'build/admin/manifest.json': 'a'.repeat(64) } } }
+    assert.deepEqual(mergeStockAssets(catalog, catalog).releases, catalog.releases)
+    assert.throws(() => mergeStockAssets(catalog, { format: 1, releases: { '0.3.2': { 'build/admin/manifest.json': 'b'.repeat(64) } } }), /Conflicting stock assets/)
+    for (const [path, hash] of [['build/admin/../.env', 'a'.repeat(64)], ['/tmp/.env', 'a'.repeat(64)], ['build/admin/x.js', 'invalid']]) {
+        assert.throws(() => mergeStockAssets({ format: 1, releases: { '0.4.0': { [path]: hash } } }, catalog), /Invalid stock asset/)
+    }
+})
+
+test('the bundled catalog recognizes the exact published 0.3.2 admin manifest and pins archive provenance', () => {
+    const catalog = JSON.parse(readFileSync('platform/core/base/resources/upgrade/stock-assets.json'))
+    assert.deepEqual(Object.keys(catalog.releases), ['0.2.0', '0.3.0', '0.3.1', '0.3.2', '0.4.0'])
+    const manifest = readFileSync('tests/fixtures/admin-manifest-0.3.2.json')
+    assert.equal(catalog.releases['0.3.2']['build/admin/manifest.json'], createHash('sha256').update(manifest).digest('hex'))
+    assert.equal(catalog.sources['0.3.2'].sha256, '7aae88747e9781eb0cdd64dcfbe947a88c284a86c6beabeabeb3c5224e82e26e')
+    assert.equal(catalog.sources['0.3.2'].url, 'https://github.com/binhtq1/kern-core/releases/download/v0.3.2/kern-core-0.3.2.zip')
 })
