@@ -31,6 +31,7 @@ export function RichEditorShortcodeDialog({
         shortcodeContent,
         setShortcodeContent,
         editingCode,
+        saveError,
         preview,
         previewError,
         previewLoading,
@@ -81,6 +82,11 @@ export function RichEditorShortcodeDialog({
             }
         >
             <div className="space-y-5">
+                {saveError && (
+                    <p role="alert" className="text-sm text-destructive">
+                        {saveError}
+                    </p>
+                )}
                 {shortcode?.fields?.map((field) => {
                     const current =
                         field.name === "content"

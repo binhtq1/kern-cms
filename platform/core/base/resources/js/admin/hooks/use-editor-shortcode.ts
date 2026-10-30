@@ -12,6 +12,11 @@ import {
     readAttributes,
     type Shortcode,
 } from "../lib/rich-editor-shortcodes";
+import {
+    findShortcodes,
+    patchShortcode,
+    type ShortcodeAttributes,
+} from "../lib/shortcode-parser";
 export function useEditorShortcode(value: string) {
     const t = useAdminTranslation();
     const [shortcode, setShortcode] = useState<Shortcode | null>(null);
@@ -20,6 +25,10 @@ export function useEditorShortcode(value: string) {
     >({});
     const [shortcodeContent, setShortcodeContent] = useState("");
     const [editingCode, setEditingCode] = useState("");
+    const [initialAttributes, setInitialAttributes] =
+        useState<ShortcodeAttributes>({});
+    const [initialContent, setInitialContent] = useState("");
+    const [saveError, setSaveError] = useState("");
     const [preview, setPreview] = useState("");
     const [previewError, setPreviewError] = useState("");
     const [previewLoading, setPreviewLoading] = useState(false);
@@ -46,16 +55,15 @@ export function useEditorShortcode(value: string) {
     const showFallbackContent =
         !hasContentField &&
         (!shortcode?.fields?.length ||
-            !!editingCode.match(/^\[[^\]]*\]([\s\S]+)\[\/[^\]]+\]$/)?.[1]);
-    const existing = Array.from(
-        value.matchAll(/\[([\w-]+)(?:\s[^\]]*)?\][\s\S]*?\[\/\1\]/g),
-    ).map((match) => match[0]);
+            !!findShortcodes(editingCode)[0]?.content);
+    const existing = findShortcodes(value);
     function configure(item: Shortcode, code = "") {
         const parsed = readAttributes(code);
         setShortcode(item);
         setEditingCode(code);
+        setSaveError("");
         resetPreview();
-        setAttributes({
+        const nextAttributes = {
             ...parsed,
             ...Object.fromEntries(
                 (item.fields ?? [])
@@ -74,21 +82,31 @@ export function useEditorShortcode(value: string) {
                               : String(value),
                     ]),
             ),
-        });
-        const inner =
-            code.match(/^\[[^\]]*\]([\s\S]*)\[\/[^\]]+\]$/)?.[1] ?? "";
-        setShortcodeContent(
-            inner ||
-                String(
-                    item.fields?.find((field) => field.name === "content")
-                        ?.value ?? "",
-                ),
-        );
+        };
+        setAttributes(nextAttributes);
+        setInitialAttributes(nextAttributes);
+        const inner = code
+            ? (findShortcodes(code)[0]?.content ?? "")
+            : String(
+                  item.fields?.find((field) => field.name === "content")
+                      ?.value ?? "",
+              );
+        setShortcodeContent(inner);
+        setInitialContent(inner);
     }
     function generatedCode() {
         if (!shortcode) {
             return "";
         }
+        if (editingCode)
+            return patchShortcode(
+                editingCode,
+                initialAttributes,
+                attributes,
+                initialContent,
+                shortcodeContent,
+                escapeAttribute,
+            );
         const props = Object.entries(attributes)
             .filter(([key]) => key !== "content")
             .map(
@@ -164,6 +182,8 @@ export function useEditorShortcode(value: string) {
         shortcodeContent,
         setShortcodeContent,
         editingCode,
+        saveError,
+        setSaveError,
         preview,
         previewError,
         previewLoading,

@@ -29,6 +29,6 @@ test("shortcode attributes decode HTML entities through the owning document", ()
             '[hero title="A &amp; B &quot;yes&quot;" token="&#91;x&#93;" plain=ignored]body',
             document,
         ),
-        { title: 'A & B "yes"', token: "[x]" },
+        { title: 'A & B "yes"', token: "[x]", plain: "ignored" },
     );
 });

@@ -7,14 +7,23 @@ import { usePage } from "@inertiajs/react";
 import { type JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Code, Maximize2, Minimize2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditorShortcode } from "../hooks/use-editor-shortcode";
 import type { Shortcode } from "../lib/rich-editor-shortcodes";
+import {
+    createShortcodeDocumentCodec,
+    shortcodeBlockAttributes,
+} from "../lib/shortcode-document";
+import {
+    findShortcodes,
+    replaceShortcodeOccurrence,
+    type ShortcodeOccurrence,
+} from "../lib/shortcode-parser";
+import { updateShortcodeBlock } from "../lib/shortcode-transactions";
 import { useFieldControl } from "./field";
 import { validImageSource } from "./image-source";
 import { MediaLibraryDialog } from "./media-library-dialog";
 import { createRichEditorExtensions } from "./rich-editor-extension-config";
-import { visualEditingIssue } from "./rich-editor-safety";
 import { RichEditorShortcodeDialog } from "./rich-editor-shortcode-dialog";
 import { RichEditorToolbar } from "./rich-editor-toolbar";
 import { UiBlocksDialog } from "./ui-blocks-dialog";
@@ -73,17 +82,65 @@ export function RichEditor({
     const shortcodeState = useEditorShortcode(value);
     const { editingCode, closeShortcode, existing, configure, generatedCode } =
         shortcodeState;
+    const codec = useRef<ReturnType<
+        typeof createShortcodeDocumentCodec
+    > | null>(null);
+    const lastOutput = useRef<string | null>(null);
+    const visualLoadIssue = useRef<string | null>(null);
+    const target = useRef<
+        | { id: string }
+        | { snapshot: string; occurrence: ShortcodeOccurrence }
+        | null
+    >(null);
+    const blockOptions = useRef({ shortcodes, configure });
+    blockOptions.current = { shortcodes, configure };
     function insertShortcode() {
         const code = generatedCode();
         if (editingCode) {
-            onChange(value.replace(editingCode, () => code));
+            if (target.current && "id" in target.current && editor) {
+                const transaction = updateShortcodeBlock(
+                    editor.state,
+                    target.current.id,
+                    code,
+                );
+                if (!transaction) {
+                    shortcodeState.setSaveError(
+                        t(
+                            "This block has changed. Close this dialog and select it again.",
+                        ),
+                    );
+                    return;
+                }
+                editor.view.dispatch(transaction);
+            } else if (target.current && "snapshot" in target.current) {
+                const next = replaceShortcodeOccurrence(
+                    value,
+                    target.current.snapshot,
+                    target.current.occurrence,
+                    code,
+                );
+                if (next === null) {
+                    shortcodeState.setSaveError(
+                        t(
+                            "This block has changed. Close this dialog and select it again.",
+                        ),
+                    );
+                    return;
+                }
+                onChange(next);
+            } else return;
         } else if (source) {
-            onChange(value + "\n" + code);
+            const from = sourceControl.current?.selectionStart ?? value.length;
+            const to = sourceControl.current?.selectionEnd ?? from;
+            onChange(value.slice(0, from) + code + value.slice(to));
         } else {
             editor
                 ?.chain()
                 .focus()
-                .insertContent({ type: "text", text: code })
+                .insertContent({
+                    type: "shortcodeBlock",
+                    attrs: shortcodeBlockAttributes(code),
+                })
                 .run();
         }
         shortcodeReturnFocus.current = source
@@ -92,8 +149,20 @@ export function RichEditor({
         closeShortcode();
     }
     const editor = useEditor({
-        extensions: createRichEditorExtensions(),
-        content: value,
+        extensions: createRichEditorExtensions({
+            definitions: () => blockOptions.current.shortcodes,
+            configure: (id, code, element) => {
+                const key = findShortcodes(code)[0]?.key;
+                const item = blockOptions.current.shortcodes.find(
+                    (item) => item.key === key,
+                );
+                if (!item) return;
+                target.current = { id };
+                shortcodeReturnFocus.current = element;
+                blockOptions.current.configure(item, code);
+            },
+        }),
+        content: "",
         editorProps: {
             attributes: {
                 ...(id
@@ -105,10 +174,33 @@ export function RichEditor({
                 "aria-invalid": fieldControl["aria-invalid"] ? "true" : "false",
             },
         },
-        onUpdate: ({ editor }) => onChange(editor.getHTML()),
+        onUpdate: ({ editor }) => {
+            const html = codec.current?.serialize(editor.state.doc);
+            if (html !== undefined && html !== lastOutput.current) {
+                lastOutput.current = html;
+                onChange(html);
+            }
+        },
         immediatelyRender: false,
         shouldRerenderOnTransaction: true,
     });
+    const loadVisualContent = useCallback(
+        (html: string) => {
+            if (!editor) return null;
+            const nextCodec = createShortcodeDocumentCodec(editor.schema);
+            const { doc, issue } = nextCodec.parse(html);
+            editor
+                .chain()
+                .setContent(doc, { emitUpdate: false })
+                .setMeta("addToHistory", false)
+                .run();
+            codec.current = nextCodec;
+            lastOutput.current = html;
+            visualLoadIssue.current = issue;
+            return issue;
+        },
+        [editor],
+    );
     function insertImages(images: JSONContent[]) {
         if (!editor || !images.length) return;
         editor
@@ -125,19 +217,20 @@ export function RichEditor({
             .run();
     }
     useEffect(() => {
-        if (editor && editor.getHTML() !== value && !editor.isFocused) {
-            editor.commands.setContent(value, { emitUpdate: false });
-            if (!source) {
-                const issue = visualEditingIssue(value, editor.getHTML());
-                if (issue) {
-                    setSource(true);
-                    setVisualIssue(
-                        `${t("Visual editing is unavailable because it would change unsupported HTML:")} ${issue}. ${t("Continue editing in HTML source to preserve this content.")}`,
-                    );
-                }
+        if (
+            editor &&
+            !source &&
+            (!codec.current || lastOutput.current !== value)
+        ) {
+            const issue = loadVisualContent(value);
+            if (issue) {
+                setSource(true);
+                setVisualIssue(
+                    `${t("Visual editing is unavailable because it would change unsupported HTML:")} ${issue}. ${t("Continue editing in HTML source to preserve this content.")}`,
+                );
             }
         }
-    }, [value, editor, source, t]);
+    }, [value, editor, source, t, loadVisualContent]);
     return (
         <div
             className={
@@ -157,14 +250,13 @@ export function RichEditor({
                     disabled={!editor}
                     onClick={() => {
                         setVisualIssue("");
-                        if (source && editor) {
-                            editor.commands.setContent(value, {
-                                emitUpdate: false,
-                            });
-                            const issue = visualEditingIssue(
-                                value,
-                                editor.getHTML(),
-                            );
+                        if (
+                            source &&
+                            editor &&
+                            (lastOutput.current !== value ||
+                                visualLoadIssue.current)
+                        ) {
+                            const issue = loadVisualContent(value);
                             if (issue) {
                                 setVisualIssue(
                                     `${t("Visual editing is unavailable because it would change unsupported HTML:")} ${issue}. ${t("Continue editing in HTML source to preserve this content.")}`,
@@ -213,21 +305,32 @@ export function RichEditor({
                         onFocus={(event) => {
                             shortcodeReturnFocus.current = event.currentTarget;
                         }}
-                        onValueChange={(value) => {
-                            const code = existing[Number(value)];
-                            const key = code?.match(/^\[([\w-]+)/)?.[1];
+                        onValueChange={(selected) => {
+                            const occurrence = existing[Number(selected)];
+                            if (!occurrence) return;
+                            const key = occurrence.key;
                             const item = shortcodes.find(
                                 (item) => item.key === key,
                             );
                             if (item) {
-                                configure(item, code);
+                                const id =
+                                    !source && editor
+                                        ? codec.current?.blockAt(
+                                              editor.state.doc,
+                                              occurrence.from,
+                                          )
+                                        : null;
+                                target.current = id
+                                    ? { id }
+                                    : { snapshot: value, occurrence };
+                                configure(item, occurrence.code);
                             }
                         }}
                     >
                         <option value="">{t("Edit shortcode")}</option>
-                        {existing.map((code, index) => (
+                        {existing.map((occurrence, index) => (
                             <option key={index} value={index}>
-                                {code.slice(0, 70)}
+                                {index + 1}. {occurrence.code.slice(0, 70)}
                             </option>
                         ))}
                     </Select>
@@ -239,6 +342,7 @@ export function RichEditor({
                 blocks={shortcodes}
                 onUse={(item) => {
                     setBlocksOpen(false);
+                    target.current = null;
                     configure(item);
                 }}
             />

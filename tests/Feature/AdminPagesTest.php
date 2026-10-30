@@ -487,6 +487,28 @@ class AdminPagesTest extends TestCase
         $this->get('/public-react-page')->assertOk()->assertSee('Visible public content')->assertDontSee('resources/js/admin.tsx');
     }
 
+    public function test_legacy_shortcode_blocks_keep_their_storage_format_when_reopened_and_updated(): void
+    {
+        $this->enableInertia();
+        $this->actingAs(UserFactory::new()->superUser()->create());
+        $code = "[hero title='Original' custom=keep][nested]Nội dung[/nested][/hero]";
+        $content = "<p>Intro &amp; text</p>\n<p class='legacy'>".$code."</p>\n".$code."\n<p>End</p>";
+        $page = PageFactory::new()->create(['content' => $content]);
+
+        $this->get(route('pages.edit', $page), $this->inertiaHeaders())
+            ->assertOk()->assertJsonPath('props.page.content', $content);
+        foreach ([$content, substr_replace($content, str_replace('Original', 'Second', $code), strrpos($content, $code), strlen($code))] as $saved) {
+            $this->post(route('pages.update', $page), [
+                'name' => $page->name,
+                'content' => $saved,
+                'status' => 'published',
+            ], $this->inertiaHeaders())->assertRedirect()->assertSessionHasNoErrors();
+            $this->assertSame($saved, $page->fresh()->content);
+            $this->get(route('pages.edit', $page), $this->inertiaHeaders())
+                ->assertOk()->assertJsonPath('props.page.content', $saved);
+        }
+    }
+
     public function test_admin_prefix_and_locale_are_shared_without_changing_public_routes(): void
     {
         $this->enableInertia();

@@ -1,115 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "vite";
-import { parseDocument } from "htmlparser2";
-import { Document, Element, Text } from "domhandler";
-import * as cssSelect from "css-select";
+import { Element } from "domhandler";
 import * as serializer from "dom-serializer";
 import { getSchema, commands } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { DOMParser, DOMSerializer } from "@tiptap/pm/model";
 import { EditorState, NodeSelection } from "@tiptap/pm/state";
 const render = serializer.default ?? serializer;
+import { domDocument } from "./rich-editor-test-dom.mjs";
 import { visualEditingIssue } from "./rich-editor-safety.ts";
-
-// Adapt the installed HTML parser's DOM to ProseMirror's standard DOM boundary.
-// The actual editor schema/parser/serializer and safety guard run unchanged.
-function domDocument() {
-    const wrap = (node) => {
-        node.ownerDocument = document;
-        Object.defineProperty(node, "nodeName", {
-            get: () =>
-                node instanceof Element
-                    ? node.name.toUpperCase()
-                    : node.type === "text"
-                      ? "#text"
-                      : "#document-fragment",
-        });
-        Object.defineProperty(node, "textContent", {
-            get: () =>
-                node.type === "text"
-                    ? node.data
-                    : (node.children ?? [])
-                          .map((child) => child.textContent)
-                          .join(""),
-        });
-
-        for (const child of node.children ?? []) wrap(child);
-        node.appendChild = (child) => {
-            child.parent = node;
-            child.prev = node.children.at(-1) ?? null;
-            if (child.prev) child.prev.next = child;
-            node.children.push(child);
-            return child;
-        };
-        if (node instanceof Element) {
-            node.getAttribute = (name) => node.attribs[name] ?? null;
-            node.setAttribute = (name, value) => {
-                node.attribs[name] = String(value);
-            };
-            node.hasAttribute = (name) => Object.hasOwn(node.attribs, name);
-            node.matches = (selector) => cssSelect.is(node, selector);
-            node.querySelector = (selector) =>
-                cssSelect.selectOne(selector, node.children);
-            node.closest = (selector) => {
-                for (
-                    let current = node;
-                    current instanceof Element;
-                    current = current.parent
-                )
-                    if (current.matches(selector)) return current;
-                return null;
-            };
-            const properties = () =>
-                Object.fromEntries(
-                    (node.attribs.style ?? "")
-                        .split(";")
-                        .filter((value) => value.includes(":"))
-                        .map((value) => {
-                            const index = value.indexOf(":");
-                            return [
-                                value.slice(0, index).trim(),
-                                value.slice(index + 1).trim(),
-                            ];
-                        }),
-                );
-            node.style = {
-                get cssText() {
-                    return node.attribs.style ?? "";
-                },
-                set cssText(value) {
-                    node.attribs.style = value;
-                },
-                get cssFloat() {
-                    return properties().float ?? "";
-                },
-                getPropertyValue(name) {
-                    return properties()[name] ?? "";
-                },
-                getPropertyPriority() {
-                    return "";
-                },
-                [Symbol.iterator]() {
-                    return Object.keys(properties())[Symbol.iterator]();
-                },
-            };
-            if (node.name === "template")
-                Object.defineProperty(node, "innerHTML", {
-                    set(value) {
-                        node.content = wrap(parseDocument(value));
-                    },
-                });
-        }
-        return node;
-    };
-    const document = {
-        createElement: (name) => wrap(new Element(name, {}, [])),
-        createTextNode: (value) => wrap(new Text(value)),
-        createDocumentFragment: () => wrap(new Document([])),
-        parse: (value) => wrap(parseDocument(value)),
-    };
-    return document;
-}
 
 test("legacy paragraph images preserve wrappers, text, links and block image/figure semantics through the installed editor schema", async () => {
     const server = await createServer({
