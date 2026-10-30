@@ -1,0 +1,11 @@
+{
+    "id": "kern/request-log",
+    "name": "Request Log",
+    "namespace": "Kern\\RequestLog\\",
+    "provider": "Kern\\RequestLog\\Providers\\RequestLogServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/request-log",
+    "version": "2.0.6",
+    "description": "Log error requests",
+    "minimum_core_version": "1.0.0"
+}

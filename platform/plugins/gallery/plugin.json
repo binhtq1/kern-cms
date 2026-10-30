@@ -1,0 +1,11 @@
+{
+    "id": "kern/gallery",
+    "name": "Gallery",
+    "namespace": "Kern\\Gallery\\",
+    "provider": "Kern\\Gallery\\Providers\\GalleryServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/gallery",
+    "version": "2.0.6",
+    "description": "Create or easy to add gallery images to posts, pages...",
+    "minimum_core_version": "1.0.0"
+}

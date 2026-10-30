@@ -1,0 +1,14 @@
+<?php
+
+/*
+|--------------------------------------------------------------------------
+| Load The Translated Cached Routes
+|--------------------------------------------------------------------------
+|
+| Load Laravel's compiled route attributes and translated route names.
+|
+*/
+
+app('router')->setCompiledRoutes({{routes}});
+
+Language::setSerializedTranslatedRoutes('{{translatedRoutes}}');

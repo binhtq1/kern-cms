@@ -1,0 +1,13 @@
+{
+    "id": "kern/magazine",
+    "name": "Magazine",
+    "namespace": "Theme\\Magazine\\",
+    "description": "A responsive editorial theme for publication and magazine websites.",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "version": "1.0.0",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/themes/magazine",
+    "vite": {
+        "entrypoints": ["assets/css/style.css", "assets/js/app.js"]
+    },
+    "required_plugins": ["blog"]
+}
