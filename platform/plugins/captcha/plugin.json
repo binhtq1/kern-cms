@@ -1,0 +1,11 @@
+{
+    "id": "kern/captcha",
+    "name": "Captcha",
+    "namespace": "Kern\\Captcha\\",
+    "provider": "Kern\\Captcha\\Providers\\CaptchaServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/captcha",
+    "version": "2.1.6",
+    "description": "Captcha for higher security",
+    "minimum_core_version": "1.0.0"
+}
