@@ -15,7 +15,7 @@ class UpgradeCommand extends Command
 {
     protected $signature = 'cms:upgrade {--check : Check prerequisites without upgrading}';
 
-    protected $description = 'Back up the database and upgrade CMS migrations and runtime assets';
+    protected $description = 'Back up the database and runtime assets, then upgrade the CMS';
 
     public function handle(Filesystem $files, RuntimeAssets $assets, DatabaseSnapshot $snapshot): int
     {
@@ -82,6 +82,8 @@ class UpgradeCommand extends Command
                 chmod($directory.'/.env', 0600);
             }
             $snapshot->create($directory);
+            $assets->backup($plan, $directory);
+            $this->components->info('Runtime asset backup: '.$directory.'/assets');
             $files->put($directory.'/status.json', json_encode(['target' => $version, 'status' => 'started'], JSON_THROW_ON_ERROR));
             $files->ensureDirectoryExists(dirname($statePath), 0700);
             $files->replace($statePath, json_encode(['version' => $version, 'status' => 'in_progress', 'snapshot' => $directory], JSON_THROW_ON_ERROR), 0600);
@@ -109,6 +111,7 @@ class UpgradeCommand extends Command
         } catch (Throwable $exception) {
             if ($directory) {
                 $files->put($directory.'/status.json', json_encode(['status' => 'failed'], JSON_THROW_ON_ERROR));
+                $this->components->info('Upgrade backup retained at: '.$directory);
             }
             $this->components->error($exception->getMessage());
             if ($maintenanceStarted) {

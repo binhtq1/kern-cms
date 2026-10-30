@@ -8,6 +8,7 @@ if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || 
   exit 1
 fi
 source_revision=${SOURCE_REVISION:-$(git rev-parse HEAD)}
+source_root=$(pwd)
 node scripts/build-core-manifest.mjs
 node --input-type=module - <<'JS'
 import { readFileSync } from 'node:fs'
@@ -30,6 +31,10 @@ mkdir -p "$artifacts"
   if GIT_TERMINAL_PROMPT=0 git ls-remote --exit-code https://github.com/binhtq1/kern-core.git refs/heads/main >/dev/null 2>&1; then
     git fetch --quiet https://github.com/binhtq1/kern-core.git refs/heads/main
     git update-ref refs/heads/distribution FETCH_HEAD
+    if git cat-file -e FETCH_HEAD:core/base/resources/upgrade/stock-assets.json 2>/dev/null; then
+      git show FETCH_HEAD:core/base/resources/upgrade/stock-assets.json > "$artifacts/previous-stock-assets.json"
+      node "$source_root/scripts/runtime-asset-manifest.mjs" core/base/resources/upgrade/stock-assets.json "$artifacts/previous-stock-assets.json"
+    fi
   fi
   git config user.name 'github-actions[bot]'
   git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
