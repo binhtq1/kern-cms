@@ -1,3 +1,4 @@
+import { AdvancedFiltersButton } from "@admin/components/advanced-filters-button";
 import { DataTableToolbar } from "@admin/components/data-table-toolbar";
 import type {
     RegisteredField,
@@ -52,7 +53,7 @@ import {
     X,
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 type PageRow = {
     id: string;
     name: string;
@@ -132,6 +133,7 @@ export default function Index({
     const [showFilters, setShowFilters] = useState(
         Boolean(filters.advanced?.length),
     );
+    const filterPanelId = useId();
 
     const [deleteTarget, setDeleteTarget] = useState<PageRow | "bulk" | null>(
         null,
@@ -552,13 +554,12 @@ export default function Index({
                         {t("Search")}
                     </Button>
                     {filterFields.length > 0 && (
-                        <Button
-                            variant="outline"
-                            aria-expanded={showFilters}
-                            onClick={() => setShowFilters(!showFilters)}
-                        >
-                            {t("Advanced filters")}
-                        </Button>
+                        <AdvancedFiltersButton
+                            expanded={showFilters}
+                            panelId={filterPanelId}
+                            appliedCount={filters.advanced?.length}
+                            onToggle={() => setShowFilters((open) => !open)}
+                        />
                     )}
                     {hasFilters && (
                         <Button
@@ -571,15 +572,19 @@ export default function Index({
                         </Button>
                     )}
                 </DataTableToolbar>
-                {filterFields.length > 0 && showFilters && (
-                    <fieldset className="contents" disabled={filtering}>
-                        <RegisteredFilterEditor
-                            fields={filterFields}
-                            value={advanced}
-                            onChange={setAdvanced}
-                            onApply={() => visit({ advanced })}
-                        />
-                    </fieldset>
+                {filterFields.length > 0 && (
+                    <div id={filterPanelId} hidden={!showFilters}>
+                        {showFilters && (
+                            <fieldset className="contents" disabled={filtering}>
+                                <RegisteredFilterEditor
+                                    fields={filterFields}
+                                    value={advanced}
+                                    onChange={setAdvanced}
+                                    onApply={() => visit({ advanced })}
+                                />
+                            </fieldset>
+                        )}
+                    </div>
                 )}
                 {Object.entries(errors)
                     .filter(([key]) => key.startsWith("advanced"))

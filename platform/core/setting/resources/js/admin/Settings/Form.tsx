@@ -122,6 +122,7 @@ export default function SettingsForm({
         null,
     );
     const [working, setWorking] = useState(false);
+    const [readingCredentials, setReadingCredentials] = useState(false);
     const [thumbnailOpen, setThumbnailOpen] = useState(false);
     const thumbnailTriggerRef = useRef<HTMLButtonElement>(null);
     const thumbnailCancelRef = useRef<HTMLButtonElement>(null);
@@ -211,6 +212,7 @@ export default function SettingsForm({
         }
     }
     const submitForm = () => {
+        if (readingCredentials) return;
         form.transform((data) =>
             Object.fromEntries(
                 Object.entries(data).filter(
@@ -251,6 +253,8 @@ export default function SettingsForm({
             media={media}
             cleared={cleared}
             setCleared={setCleared}
+            readingCredentials={readingCredentials}
+            setReadingCredentials={setReadingCredentials}
         />
     );
     const renderFields = (items: SettingField[]) =>
@@ -381,7 +385,7 @@ export default function SettingsForm({
                             <SettingsSaveFooter
                                 processing={form.processing}
                                 dirty={form.isDirty || draft.dirty}
-                                disabled={working}
+                                disabled={working || readingCredentials}
                             />
                         </Card>
                         {tokenUrl && <ApiTokenCard url={tokenUrl} />}

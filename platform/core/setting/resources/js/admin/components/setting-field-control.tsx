@@ -1,6 +1,7 @@
 import { CodeEditor } from "@admin/components/code-editor";
 import { ColorPicker } from "@admin/components/color-picker";
 import { Field } from "@admin/components/field";
+import { FileUploadField } from "@admin/components/file-upload-field";
 import { FontPicker } from "@admin/components/font-picker";
 import { IconPicker } from "@admin/components/icon-picker";
 import { MediaPicker } from "@admin/components/media-picker";
@@ -14,9 +15,12 @@ import { Select } from "@admin/components/ui/select";
 import { useAdminTranslation } from "@admin/lib/translate";
 import { cn } from "@admin/lib/utils";
 import type { InertiaFormProps } from "@inertiajs/react";
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { isSettingFieldVisible } from "../Settings/field-sections";
 import type { SettingField, SettingProps, Value } from "../Settings/Form";
+
+const credentialsKey = "analytics_service_account_credentials";
+
 export function SettingFieldControl({
     field,
     form,
@@ -24,6 +28,8 @@ export function SettingFieldControl({
     media,
     cleared,
     setCleared,
+    readingCredentials,
+    setReadingCredentials,
 }: {
     field: SettingField;
     form: InertiaFormProps<Record<string, Value>>;
@@ -31,8 +37,17 @@ export function SettingFieldControl({
     media: SettingProps["media"];
     cleared: string[];
     setCleared: Dispatch<SetStateAction<string[]>>;
+    readingCredentials: boolean;
+    setReadingCredentials: (reading: boolean) => void;
 }) {
     const t = useAdminTranslation();
+    const [credentials, setCredentials] = useState<{
+        file: File;
+        text: string;
+    } | null>(null);
+    useEffect(() => {
+        if (form.wasSuccessful) setCredentials(null);
+    }, [form.wasSuccessful]);
     const change = (name: string, value: Value) => form.setData(name, value);
     const parse = (value: Value): Value => {
         if (typeof value === "string") {
@@ -449,28 +464,52 @@ export function SettingFieldControl({
                     );
                 if (field.type === "json-upload")
                     return (
-                        <Input
+                        <FileUploadField
                             id={id}
-                            type="file"
                             accept="application/json,.json"
-                            onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                    try {
-                                        const text = await file.text();
-                                        JSON.parse(text);
-                                        change(
-                                            "analytics_service_account_credentials",
-                                            text,
-                                        );
-                                        form.clearErrors(field.name);
-                                    } catch {
-                                        form.setError(
-                                            field.name,
-                                            t("Invalid JSON"),
-                                        );
-                                    }
+                            formats=".json"
+                            disabled={
+                                form.processing ||
+                                field.disabled ||
+                                field.readonly
+                            }
+                            loading={readingCredentials}
+                            file={
+                                credentials?.text === form.data[credentialsKey]
+                                    ? credentials?.file
+                                    : null
+                            }
+                            onSelect={async (file) => {
+                                setReadingCredentials(true);
+                                form.clearErrors(field.name);
+                                try {
+                                    const text = await file.text();
+                                    JSON.parse(text);
+                                    change(credentialsKey, text);
+                                    setCredentials({ file, text });
+                                    setCleared((current) =>
+                                        current.filter(
+                                            (name) => name !== credentialsKey,
+                                        ),
+                                    );
+                                    form.clearErrors(credentialsKey);
+                                } catch (error) {
+                                    form.setError(
+                                        field.name,
+                                        t(
+                                            error instanceof SyntaxError
+                                                ? "Invalid JSON"
+                                                : "Could not read the JSON file.",
+                                        ),
+                                    );
+                                } finally {
+                                    setReadingCredentials(false);
                                 }
+                            }}
+                            onRemove={() => {
+                                setCredentials(null);
+                                change(credentialsKey, "");
+                                form.clearErrors(field.name, credentialsKey);
                             }}
                         />
                     );
@@ -531,13 +570,22 @@ export function SettingFieldControl({
                                     : field.placeholder
                             }
                             value={String(value ?? "")}
-                            disabled={field.disabled || field.readonly}
+                            disabled={
+                                field.disabled ||
+                                field.readonly ||
+                                (field.name === credentialsKey &&
+                                    readingCredentials)
+                            }
                             onChange={(e) => change(field.name, e.target.value)}
                         />
                         {field.secret && field.stored && (
                             <Button
                                 variant="ghost"
                                 size="sm"
+                                disabled={
+                                    field.name === credentialsKey &&
+                                    readingCredentials
+                                }
                                 onClick={() => {
                                     change(field.name, "");
                                     setCleared(

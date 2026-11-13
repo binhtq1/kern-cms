@@ -8,12 +8,12 @@
         </div>
 
         <div class="site-footer__navigation">
-            <nav aria-label="{{ __('Điều hướng chân trang') }}">
+            <nav aria-label="{{ __('Footer navigation') }}">
                 {!! Menu::renderMenuLocation('main-menu', ['options' => ['class' => 'footer-menu'], 'view' => 'main-menu']) !!}
             </nav>
 
             @if ($socialLinks = Theme::getSocialLinks())
-                <nav class="site-footer__social" aria-label="{{ __('Mạng xã hội') }}">
+                <nav class="site-footer__social" aria-label="{{ __('Social media') }}">
                 @foreach ($socialLinks as $socialLink)
                     @continue(! $icon = $socialLink->getIconHtml())
                     <a {{ $socialLink->getAttributes() }}>
@@ -28,7 +28,7 @@
     <div class="magazine-wrap site-footer__bottom">
         <p>{!! Theme::getSiteCopyright() ?: '&copy; '.date('Y').' '.e(theme_option('site_title') ?: config('app.name')) !!}</p>
         @if (is_plugin_active('blog'))
-            <a href="{{ route('public.search') }}">{{ __('Tìm bài viết') }}</a>
+            <a href="{{ route('public.search') }}">{{ __('Search articles') }}</a>
         @endif
     </div>
 </footer>

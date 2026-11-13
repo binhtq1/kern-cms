@@ -1,3 +1,4 @@
+import { AdvancedFiltersButton } from "@admin/components/advanced-filters-button";
 import { DataTableToolbar } from "@admin/components/data-table-toolbar";
 import { type RegisteredFilter } from "@admin/components/registered-table-controls";
 import { SearchInput } from "@admin/components/search-input";
@@ -13,6 +14,7 @@ export function AclFilters({
     search,
     kind,
     filters,
+    filterPanelId,
     setShowFilters,
     showFilters,
     setAdvanced,
@@ -31,6 +33,7 @@ export function AclFilters({
         direction?: string | undefined;
         per_page?: number | undefined;
     };
+    filterPanelId: string;
     setShowFilters: Dispatch<SetStateAction<boolean>>;
     showFilters: boolean;
     setAdvanced: Dispatch<SetStateAction<RegisteredFilter[]>>;
@@ -63,9 +66,6 @@ export function AclFilters({
                 placeholder={t("Search")}
                 className="max-w-sm"
             />
-            <Button type="submit" variant="outline" disabled={loading}>
-                {t("Search")}
-            </Button>
             {kind === "users" && (
                 <Select
                     disabled={loading}
@@ -79,13 +79,15 @@ export function AclFilters({
                     <option value="deactivated">{t("Deactivated")}</option>
                 </Select>
             )}
-            <Button
-                variant="outline"
-                onClick={() => setShowFilters(!showFilters)}
-                aria-expanded={showFilters}
-            >
-                {t("Advanced filters")}
+            <Button type="submit" variant="outline" disabled={loading}>
+                {t("Search")}
             </Button>
+            <AdvancedFiltersButton
+                expanded={showFilters}
+                panelId={filterPanelId}
+                appliedCount={filters.advanced?.length}
+                onToggle={() => setShowFilters((open) => !open)}
+            />
             {Boolean(search || filters.status || filters.advanced?.length) && (
                 <Button
                     variant="ghost"

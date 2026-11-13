@@ -5,11 +5,15 @@ import {
 import { Button } from "@admin/components/ui/button";
 import { Dialog } from "@admin/components/ui/dialog";
 import { parseJsonImport } from "@admin/lib/json-import";
-import { Input, Textarea } from "@admin/components/ui/input";
+import { Textarea } from "@admin/components/ui/input";
 import { Field } from "@admin/components/field";
+import { FileUploadField } from "@admin/components/file-upload-field";
 import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useAdminTranslation } from "@admin/lib/translate";
+
+const maxJsonBytes = 2 * 1024 * 1024;
+
 export default function FieldGroupsIndex(
     props: ContentIndexProps & {
         urls: ContentIndexProps["urls"] & { import: string; export: string };
@@ -19,23 +23,32 @@ export default function FieldGroupsIndex(
     const [open, setOpen] = useState(false);
     const [json, setJson] = useState("");
     const [error, setError] = useState("");
+    const [file, setFile] = useState<File | null>(null);
+    const [fileError, setFileError] = useState("");
+    const [reading, setReading] = useState(false);
     const [busy, setBusy] = useState(false);
-    async function readFile(file?: File) {
-        if (!file || busy) return;
-        setBusy(true);
-        setError("");
+    async function readFile(next: File) {
+        setReading(true);
+        setFileError("");
         try {
-            if (file.size > 2 * 1024 * 1024)
-                throw new Error("File is too large");
-            const text = await file.text();
-            parseJsonImport(text, 2 * 1024 * 1024, 100);
+            const text = await next.text();
+            parseJsonImport(text, maxJsonBytes, 100);
             setJson(text);
+            setFile(next);
+            setError("");
         } catch (error) {
-            setError(
-                t(error instanceof Error ? error.message : "Invalid JSON"),
+            setFileError(
+                t(
+                    error instanceof SyntaxError
+                        ? "Invalid JSON"
+                        : error instanceof Error &&
+                            error.message === "Invalid JSON data"
+                          ? "Invalid JSON data"
+                          : "Could not read the JSON file.",
+                ),
             );
         } finally {
-            setBusy(false);
+            setReading(false);
         }
     }
     return (
@@ -52,21 +65,18 @@ export default function FieldGroupsIndex(
             />
             <Dialog
                 open={open}
-                onOpenChange={(value) => !busy && setOpen(value)}
+                onOpenChange={(value) => !busy && !reading && setOpen(value)}
                 title={t("Import")}
             >
                 <form
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => {
-                        event.preventDefault();
-                        void readFile(event.dataTransfer.files[0]);
-                    }}
+                    className="space-y-4"
                     onSubmit={(event) => {
                         event.preventDefault();
+                        if (busy || reading) return;
                         try {
                             const data = parseJsonImport(
                                 json,
-                                2 * 1024 * 1024,
+                                maxJsonBytes,
                                 100,
                             );
                             setError("");
@@ -89,16 +99,22 @@ export default function FieldGroupsIndex(
                         }
                     }}
                 >
-                    <Field label={t("JSON file")}>
+                    <Field label={t("JSON file")} error={fileError}>
                         {(id) => (
-                            <Input
+                            <FileUploadField
                                 id={id}
-                                type="file"
                                 accept=".json,application/json"
+                                formats=".json"
+                                maxBytes={maxJsonBytes}
+                                file={file}
                                 disabled={busy}
-                                onChange={(event) => {
-                                    void readFile(event.target.files?.[0]);
-                                    event.target.value = "";
+                                loading={reading}
+                                onSelect={(next) => void readFile(next)}
+                                onRemove={() => {
+                                    setFile(null);
+                                    setFileError("");
+                                    setJson("");
+                                    setError("");
                                 }}
                             />
                         )}
@@ -109,14 +125,17 @@ export default function FieldGroupsIndex(
                                 id={id}
                                 className="min-h-64 font-mono"
                                 value={json}
-                                disabled={busy}
-                                onChange={(event) =>
-                                    setJson(event.target.value)
-                                }
+                                disabled={busy || reading}
+                                onChange={(event) => {
+                                    setJson(event.target.value);
+                                    setFile(null);
+                                    setFileError("");
+                                    setError("");
+                                }}
                             />
                         )}
                     </Field>
-                    <Button type="submit" loading={busy} className="mt-4">
+                    <Button type="submit" loading={busy} disabled={reading}>
                         {t("Import")}
                     </Button>
                 </form>

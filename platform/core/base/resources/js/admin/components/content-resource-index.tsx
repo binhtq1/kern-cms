@@ -9,7 +9,8 @@ import { copyToClipboard } from "@admin/lib/clipboard";
 import type { Option } from "@admin/types";
 import { Head, Link, router } from "@inertiajs/react";
 import { Copy, Files, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { AdvancedFiltersButton } from "./advanced-filters-button";
 import { DataTableToolbar } from "./data-table-toolbar";
 import {
     RegisteredBulkChange,
@@ -138,6 +139,7 @@ export function ContentResourceIndex({
     const [showFilters, setShowFilters] = useState(
         Boolean(filters.advanced?.length),
     );
+    const filterPanelId = useId();
     const selectionContext = JSON.stringify(filters);
     useEffect(() => {
         setSelected([]);
@@ -345,13 +347,12 @@ export function ContentResourceIndex({
                         {t("Search")}
                     </Button>
                     {bulkFields.length > 0 && (
-                        <Button
-                            variant="outline"
-                            onClick={() => setShowFilters(!showFilters)}
-                            aria-expanded={showFilters}
-                        >
-                            {t("Advanced filters")}
-                        </Button>
+                        <AdvancedFiltersButton
+                            expanded={showFilters}
+                            panelId={filterPanelId}
+                            appliedCount={filters.advanced?.length}
+                            onToggle={() => setShowFilters((open) => !open)}
+                        />
                     )}
                     {!!(
                         filters.search ||
@@ -370,15 +371,19 @@ export function ContentResourceIndex({
                         </Button>
                     )}
                 </DataTableToolbar>
-                {showFilters && bulkFields.length > 0 && (
-                    <fieldset className="contents" disabled={filtering}>
-                        <RegisteredFilterEditor
-                            fields={bulkFields}
-                            value={advanced}
-                            onChange={setAdvanced}
-                            onApply={() => visit({ advanced })}
-                        />
-                    </fieldset>
+                {bulkFields.length > 0 && (
+                    <div id={filterPanelId} hidden={!showFilters}>
+                        {showFilters && (
+                            <fieldset className="contents" disabled={filtering}>
+                                <RegisteredFilterEditor
+                                    fields={bulkFields}
+                                    value={advanced}
+                                    onChange={setAdvanced}
+                                    onApply={() => visit({ advanced })}
+                                />
+                            </fieldset>
+                        )}
+                    </div>
                 )}
                 {bulkError && !selected.length && (
                     <p role="alert" className="p-4 text-sm text-destructive">

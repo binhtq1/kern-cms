@@ -12,11 +12,11 @@
         @endif
         <div class="story-header__details">
             @if ($post->author_name)
-                <span>{{ __('Bởi :author', ['author' => $post->author_name]) }}</span>
+                <span>{{ __('By :author', ['author' => $post->author_name]) }}</span>
             @endif
             <span>{{ Theme::formatDate($post->created_at) }}</span>
             @if ($post->time_reading)
-                <span>{{ __('Đọc trong :count phút', ['count' => $post->time_reading]) }}</span>
+                <span>{{ __(':count min read', ['count' => $post->time_reading]) }}</span>
             @endif
         </div>
     </header>
@@ -33,7 +33,7 @@
 
     <footer class="story-footer">
         @if ($post->tags->isNotEmpty())
-            <div class="story-tags" aria-label="{{ __('Chủ đề') }}">
+            <div class="story-tags" aria-label="{{ __('Topic') }}">
                 @foreach ($post->tags as $tag)
                     <a href="{{ $tag->url }}">{{ $tag->name }}</a>
                 @endforeach
@@ -46,7 +46,7 @@
 @if ($relatedPosts->isNotEmpty())
     <section class="magazine-wrap related-stories" aria-labelledby="related-stories-title">
         <div class="section-heading">
-            <h2 id="related-stories-title">{{ __('Đọc tiếp') }}</h2>
+            <h2 id="related-stories-title">{{ __('Read next') }}</h2>
         </div>
         <div class="article-grid article-grid--related">
             @foreach ($relatedPosts as $relatedPost)

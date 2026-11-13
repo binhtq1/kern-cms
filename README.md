@@ -1,25 +1,25 @@
 # Kern CMS
 
-Kern CMS được phân phối dưới dạng project Composer `binhtq1/kern-cms`, sử dụng runtime `binhtq1/kern-core`.
+Kern CMS is distributed as the Composer project `binhtq1/kern-cms` and uses the `binhtq1/kern-core` runtime.
 
 ```bash
 composer create-project binhtq1/kern-cms my-website
 ```
 
-## Nâng cấp website từ 0.1.0 lên 0.3.1
+## Upgrade a website from 0.1.0 to 0.3.1
 
-Công cụ `kern-upgrade.php` hỗ trợ nâng cấp trực tiếp website đã cài bản `0.1.0` lên `0.3.1`. Công cụ tự chuyển cấu hình Composer sang `kern-core`, cập nhật dependency, chạy migration và cập nhật assets. Không cần nâng cấp qua `0.2.0` hoặc `0.3.0` trước.
+The `kern-upgrade.php` tool upgrades an existing `0.1.0` website directly to `0.3.1`. It switches the Composer configuration to `kern-core`, updates dependencies, runs migrations, and updates assets. You can skip `0.2.0` and `0.3.0`.
 
-Các ví dụ dưới đây dành cho máy chủ Linux và shell Bash/Zsh. Thay `/var/www/my-website` bằng thư mục gốc website có `artisan`, `composer.json` và `.env`. Thử trên bản sao website trước, rồi thực hiện trên website thật trong khung giờ bảo trì. Chạy từng khối lệnh; nếu có lỗi, dừng và xử lý trước khi sang bước tiếp theo.
+These examples use Bash or Zsh on Linux. Replace `/var/www/my-website` with the website root containing `artisan`, `composer.json`, and `.env`. Test on a copy of the website first, then upgrade the live website during a maintenance window. Run one command block at a time. If a block fails, stop and resolve the error before continuing.
 
-### 1. Chuẩn bị
+### 1. Prepare for the upgrade
 
-- PHP CLI và PHP chạy website đều từ **8.4** trở lên; Composer 2 có trong `PATH` và sử dụng cùng môi trường PHP phù hợp.
-- Có extension `zip` cùng các extension CMS yêu cầu; `proc_open` và `allow_url_fopen` được bật. Máy chủ kết nối HTTPS được tới GitHub và Packagist.
-- Website đã hoàn tất cài đặt: còn `.env`, `composer.lock`, `vendor/autoload.php`, `storage/installed` và cấu trúc gốc `0.1.0`. Giữ nguyên `APP_KEY`.
-- Tài khoản chạy lệnh có quyền đọc/ghi các file website. Dung lượng trống phải đủ cho bản sao mã nguồn, `vendor`, uploads, database và các file tải về/giải nén tạm thời.
-- Công cụ hỗ trợ driver `mysql`, `pgsql`, `sqlite`. MySQL hoặc MariaDB dùng driver `mysql` cần `mysqldump`; PostgreSQL cần `pg_dump` tương thích với máy chủ database. Tài khoản database phải có quyền tạo bản dump. SQLite phải là database trên đĩa. Driver `mariadb` riêng và các driver khác chưa được công cụ hỗ trợ snapshot.
-- Có bản sao lưu độc lập trước khi triển khai. Dữ liệu trên S3, dịch vụ ngoài hoặc đích symlink nằm ngoài website cần được sao lưu riêng.
+- PHP CLI and the PHP runtime serving the website must both be **8.4** or later. Composer 2 must be on `PATH` and use the same compatible PHP environment.
+- Install the `zip` extension and the other extensions the CMS requires. Enable `proc_open` and `allow_url_fopen`. The server must be able to reach GitHub and Packagist over HTTPS.
+- The website must have a complete installation with `.env`, `composer.lock`, `vendor/autoload.php`, `storage/installed`, and the original `0.1.0` directory structure. Keep the existing `APP_KEY`.
+- The account running the commands needs read and write access to the website files. Allow enough free disk space for copies of the source code, `vendor`, uploads, and database, plus temporary downloads and extracted files.
+- The tool supports the `mysql`, `pgsql`, and `sqlite` drivers. MySQL or MariaDB using the `mysql` driver requires `mysqldump`. PostgreSQL requires a version of `pg_dump` compatible with the database server. The database account needs permission to create a dump. SQLite must use an on-disk database. Snapshot support is limited to these three drivers, which excludes the separate `mariadb` driver.
+- Make an independent backup before deploying. Back up data on S3 or other external services, and any symlink targets outside the website, separately.
 
 ```bash
 cd /var/www/my-website
@@ -27,9 +27,9 @@ php -v
 composer --version
 ```
 
-### 2. Tải đúng công cụ của release 0.3.1
+### 2. Download the upgrade tool for release 0.3.1
 
-Tải **release asset** từ [v0.3.1](https://github.com/binhtq1/kern-cms/releases/tag/v0.3.1). File `kern-upgrade.php` trong nhánh nguồn là template dùng khi build, không phải file để chạy nâng cấp.
+Download the **release asset** from [v0.3.1](https://github.com/binhtq1/kern-cms/releases/tag/v0.3.1). The build uses the `kern-upgrade.php` file in the source branch as a template. Run the release asset to perform the upgrade.
 
 ```bash
 curl --fail --location \
@@ -37,7 +37,7 @@ curl --fail --location \
   --output kern-upgrade.php
 ```
 
-Đối chiếu SHA-256 của công cụ đã phát hành:
+Verify the SHA-256 checksum of the released tool.
 
 ```bash
 printf '%s  %s\n' \
@@ -45,84 +45,84 @@ printf '%s  %s\n' \
   kern-upgrade.php | sha256sum --check -
 ```
 
-Chỉ tiếp tục khi kết quả là `kern-upgrade.php: OK`. Công cụ cũng tự kiểm tra SHA-256 của các archive CMS/runtime tải về.
+Continue only if the output is `kern-upgrade.php: OK`. The tool also verifies the SHA-256 checksums of the CMS and runtime archives it downloads.
 
-### 3. Kiểm tra xung đột trước khi nâng cấp
+### 3. Check for conflicts before upgrading
 
 ```bash
 php kern-upgrade.php --to=0.3.1 --check
 ```
 
-Kết quả thành công có dòng:
+A successful check prints the following line.
 
 ```text
 Check passed. Website files and database were not changed.
 ```
 
-`--check` kiểm tra cấu trúc website, các file mặc định đã sửa và mã nguồn plugin/theme tùy chỉnh còn phụ thuộc jQuery. Lệnh này không thay đổi website/database; kiểm tra ứng dụng, kết nối database và khả năng tạo snapshot diễn ra khi chạy nâng cấp thật. Kết quả kiểm tra tĩnh không thay thế việc thử các tích hợp tùy chỉnh trên bản staging.
+`--check` examines the website structure, modified stock files, and custom plugin or theme code that still depends on jQuery. It leaves the website and database untouched. The tool checks the application, the database connection, and whether it can create a snapshot during the upgrade itself. Test custom integrations in staging as well as running this static check.
 
-Nếu công cụ liệt kê file xung đột, xử lý từng file rồi chạy lại `--check`. Chuyển thay đổi trong core sang code riêng, configuration hoặc overrides phù hợp; chuyển mã jQuery tùy chỉnh sang JavaScript thuần/React. Công cụ dừng khi phát hiện xung đột, không tự ghi đè để bỏ qua tùy chỉnh.
+If the tool reports conflicting files, resolve each conflict and rerun `--check`. Move changes to core files into custom code, configuration, or appropriate overrides. Port custom jQuery code to vanilla JavaScript or React. The tool stops when it detects conflicts and leaves the customized files untouched.
 
-### 4. Tạm dừng các tiến trình ghi dữ liệu
+### 4. Pause processes that write data
 
-Tạm dừng queue worker, scheduler/cron, import dữ liệu và các tiến trình nền có thể ghi database hoặc uploads bằng Supervisor, systemd hoặc bảng quản trị hosting đang dùng. Nếu nhiều instance cùng dùng database/storage, dừng ghi trên tất cả instance liên quan trong suốt quá trình nâng cấp và kiểm tra.
+Use Supervisor, systemd, or your hosting control panel to pause queue workers, schedulers and cron jobs, data imports, and other background processes that can write to the database or upload storage. If multiple instances share the same database or storage, pause writes on all affected instances throughout the upgrade and verification.
 
-Chế độ bảo trì HTTP không tự dừng mọi tiến trình nền. Công cụ sẽ tự bật bảo trì trước khi tạo backup nếu website chưa ở chế độ này.
+Background processes may continue running in HTTP maintenance mode. The tool enables maintenance mode before creating the backup if it is currently disabled.
 
-### 5. Chạy nâng cấp
+### 5. Run the upgrade
 
 ```bash
 php kern-upgrade.php --to=0.3.1
 ```
 
-Công cụ lần lượt kiểm tra ứng dụng/database, bật bảo trì, sao lưu website và database, chuyển cấu hình Composer, cập nhật runtime/assets và chạy `cms:upgrade`. Các lệnh Composer và migration cần thiết đã nằm trong quy trình này.
+The tool checks the application and database, enables maintenance mode, backs up the website and database, switches the Composer configuration, updates the runtime and assets, and runs `cms:upgrade`. This workflow includes the required Composer and migration commands.
 
-Khi thành công, màn hình hiển thị:
+A successful upgrade prints the following message.
 
 ```text
 Kern CMS 0.3.1 upgraded successfully. Backup retained at ...
 ```
 
-Backup trước nâng cấp nằm tại `storage/kern-upgrader/<thời-gian>-<mã>/`:
+The pre-upgrade backup is stored in `storage/kern-upgrader/<timestamp>-<id>/`.
 
-| File | Nội dung |
+| File | Contents |
 | --- | --- |
-| `website.zip` | Mã nguồn, `vendor`, `.env`, uploads và các file thường trong website trước chuyển đổi. |
-| `database.sql` | Snapshot MySQL/MariaDB, nếu dùng driver `mysql`. |
-| `database.pgsql` | Snapshot PostgreSQL dạng custom archive, nếu dùng driver `pgsql`. |
-| `database.sqlite` | Snapshot SQLite nhất quán, nếu dùng driver `sqlite`. |
-| `files.json` | SHA-256 của ZIP/từng file và danh sách symlink cùng đích của chúng. |
-| `database-info.json` | Driver database và trạng thái bảo trì trước khi công cụ bật bảo trì. |
-| `status.json` | Trạng thái chạy và cờ `backup_complete`. |
+| `website.zip` | Source code, `vendor`, `.env`, uploads, and other regular files in the website before the upgrade. |
+| `database.sql` | MySQL or MariaDB snapshot when using the `mysql` driver. |
+| `database.pgsql` | PostgreSQL snapshot in custom archive format when using the `pgsql` driver. |
+| `database.sqlite` | Consistent SQLite snapshot when using the `sqlite` driver. |
+| `files.json` | SHA-256 checksums for the ZIP archive and individual files, plus a list of symlinks and their targets. |
+| `database-info.json` | Database driver and the maintenance state before the tool enabled maintenance mode. |
+| `status.json` | Upgrade status and the `backup_complete` flag. |
 
-Chỉ có snapshot ứng với driver đang dùng. ZIP không chứa `.git`, `node_modules`, các backup nâng cấp trước đó hoặc nội dung đích symlink. File bảo trì do chính công cụ tạo cũng được loại khỏi ZIP. Backup chứa bí mật trong `.env` và dữ liệu website: giữ riêng tư, không đưa vào Git hoặc nơi tải công khai.
+Only the snapshot for the active database driver is present. The ZIP excludes `.git`, `node_modules`, earlier upgrade backups, the contents of symlink targets, and any maintenance file the tool creates. The backup contains secrets from `.env` and website data. Keep it private and out of Git and public download locations.
 
-### 6. Kiểm tra sau nâng cấp
+### 6. Verify the upgrade
 
 ```bash
 composer show binhtq1/kern-core
 cat storage/app/kern/upgrade.json
 ```
 
-Xác nhận runtime là `0.3.1`; trạng thái có `"version": "0.3.1"` và `completed_at`. Kiểm tra đăng nhập quản trị/thành viên, nội dung, cài đặt, uploads, biểu mẫu và các plugin/theme tùy chỉnh. Sau khi kiểm tra xong, bật lại worker và scheduler.
+Confirm that the runtime is `0.3.1` and that the status file contains `"version": "0.3.1"` and `completed_at`. Check administrator and member sign-in, content, settings, uploads, forms, and custom plugins and themes. Resume workers and the scheduler after verification.
 
-Nếu chính công cụ đã bật bảo trì, nó sẽ tự mở lại website khi thành công. Nếu bạn đã bật bảo trì từ trước, công cụ giữ nguyên trạng thái đó; chỉ mở lại bằng `php artisan up --no-interaction` khi đã kiểm tra xong. Giữ backup cho đến khi xác nhận website ổn định.
+If the tool enabled maintenance mode, it brings the website back online after a successful upgrade. If you enabled maintenance mode beforehand, bring the site back online with `php artisan up --no-interaction` once verification is complete. Keep the backup until you confirm that the website is stable.
 
-## Khôi phục backup nếu nâng cấp thất bại
+## Restore a backup after a failed upgrade
 
-Công cụ **không tự rollback**. Sau lỗi, website có thể vẫn ở chế độ bảo trì. Không mở lại website hoặc chạy tiếp các lệnh nâng cấp một cách tự động khi trạng thái đang dở dang. Lưu thông báo lỗi và đường dẫn backup; chọn xử lý lỗi có kiểm soát hoặc khôi phục **mã nguồn và database từ cùng một lần backup trước nâng cấp**.
+Rollback is **manual**. After an error, the website may still be in maintenance mode. Keep it offline and pause any automated upgrade commands while the upgrade is incomplete. Record the error message and backup path. Troubleshoot the failure in a controlled manner or restore **the source code and database from the same pre-upgrade backup**.
 
-Khôi phục đưa dữ liệu về thời điểm snapshot. Dữ liệu phát sinh sau đó cần được giữ riêng và đối chiếu trước khi mở lại website.
+Restoration returns the data to the point when the snapshot was taken. Preserve any data created after that point separately and reconcile it before bringing the website back online.
 
-### 1. Giữ website ngừng phục vụ và kiểm tra backup
+### 1. Keep the website offline and verify the backup
 
-Chặn truy cập bằng chế độ bảo trì của web server/reverse proxy/hosting trong suốt quá trình khôi phục; tiếp tục dừng worker, scheduler và các instance ghi dữ liệu. Lớp bảo trì bên ngoài ứng dụng cần thiết vì bạn sắp thay thư mục mã nguồn.
+Block access using maintenance mode at the web server, reverse proxy, or hosting layer throughout the restoration. Keep workers, schedulers, and all instances that write data paused. The external maintenance layer is required because you will replace the source directory.
 
-Trong cùng một phiên SSH, khai báo đường dẫn tuyệt đối. Ví dụ này áp dụng khi website là thư mục thật; hệ thống deploy bằng symlink/release directory cần điều chỉnh bước chuyển thư mục theo cơ chế deploy của mình.
+Set the absolute paths in the same SSH session. This example assumes the website root is a real directory. If your deployment uses symlinks or release directories, adapt the directory swap to your deployment process. Set `kern_backup_id` to the actual backup ID in the command below.
 
 ```bash
 kern_site_dir=/var/www/my-website
-kern_backup_id=THAY-BANG-ID-BACKUP
+kern_backup_id=REPLACE-WITH-BACKUP-ID
 kern_backup_dir="$kern_site_dir/storage/kern-upgrader/$kern_backup_id"
 kern_restore_dir=/var/www/my-website.restore-0.1.0
 kern_failed_dir="/var/www/my-website.failed-$(date +%Y%m%d%H%M%S)"
@@ -131,9 +131,9 @@ cat "$kern_backup_dir/status.json"
 cat "$kern_backup_dir/database-info.json"
 ```
 
-`backup_complete` phải là `true`, và phải có snapshot database đúng driver. Nếu `backup_complete` là `false`, công cụ chưa hoàn tất backup và chưa chuyển đổi code CMS; không dùng thư mục đó như một bản khôi phục hoàn chỉnh. Xử lý lỗi sao lưu hoặc dùng bản sao lưu độc lập.
+Confirm that `backup_complete` is `true` and that the snapshot matches the database driver. If `backup_complete` is `false`, the backup is incomplete and the tool has yet to switch the CMS code. Resolve the backup error or use an independent backup for a full restoration.
 
-Kiểm tra ZIP với hash được lưu trong chính backup:
+Verify the ZIP against the hash stored in the backup.
 
 ```bash
 php -r '
@@ -148,11 +148,11 @@ echo "Backup ZIP verified.\n";
 ' "$kern_backup_dir"
 ```
 
-Dừng nếu kiểm tra thất bại. Có thể sao chép toàn bộ thư mục backup sang vị trí riêng tư ngoài website trước khi thao tác tiếp.
+Stop if verification fails. You can copy the entire backup directory to a private location outside the website before continuing.
 
-### 2. Giải nén mã nguồn vào thư mục mới
+### 2. Extract the source code into a new directory
 
-Cần có lệnh `unzip`. `kern_restore_dir` và `kern_failed_dir` phải chưa tồn tại. Không giải nén chồng lên mã nguồn nâng cấp dở vì file mới của `0.3.1` có thể còn sót lại.
+This step requires `unzip`. Use paths for `kern_restore_dir` and `kern_failed_dir` that do not already exist. Extract into a fresh directory to avoid leaving behind files introduced by `0.3.1`.
 
 ```bash
 test ! -e "$kern_restore_dir" &&
@@ -169,17 +169,17 @@ mkdir -p "$kern_restore_dir/storage/app/public" \
   "$kern_restore_dir/bootstrap/cache"
 ```
 
-Giữ `.env`, `APP_KEY`, `composer.json`, `composer.lock` và `vendor` từ bản backup. ZIP không bảo đảm phục hồi đầy đủ owner/quyền thực thi; đặt lại quyền theo cấu hình máy chủ, đặc biệt quyền ghi `storage` và `bootstrap/cache` cho tài khoản PHP/web server.
+Keep `.env`, `APP_KEY`, `composer.json`, `composer.lock`, and `vendor` from the backup. File ownership and executable permissions may need to be restored separately. Reapply permissions according to your server configuration, especially write access to `storage` and `bootstrap/cache` for the PHP or web server account.
 
-### 3. Khôi phục database tương ứng
+### 3. Restore the database for your driver
 
-Chỉ chọn **một** nhánh theo `database-info.json`. Với MySQL/PostgreSQL, dùng **database mới, rỗng và có tên riêng**, ví dụ `kern_restore_0_1_0`; giữ database nâng cấp dở để đối chiếu. Không import vào database đang có bảng vì có thể để lại schema của phiên bản mới.
+Follow exactly **one** of the following options based on `database-info.json`. For MySQL or PostgreSQL, use a **new, empty database with a distinct name**, such as `kern_restore_0_1_0`. Keep the partially upgraded database for comparison. Importing into a database with existing tables can leave schema objects from the newer version behind.
 
-Thay `DB_HOST`, `DB_USER`, cổng và tên database trong ví dụ bằng giá trị thật. Dùng tài khoản có quyền tạo/import database hoặc nhờ quản trị viên tạo database rỗng, cấp quyền trước. Nhập mật khẩu khi client hỏi, không đưa mật khẩu trực tiếp vào lệnh.
+Replace `DB_HOST`, `DB_USER`, the port, and the database name in the examples with your actual values. Use an account with permission to create or import the database, or have an administrator create an empty database and grant access first. Enter the password at the client prompt to keep it out of the command line.
 
-Nếu website dùng `DB_URL` hoặc biến môi trường do hosting/container cấp, cập nhật cả những giá trị đó để chúng trỏ tới database khôi phục; chỉ sửa `DB_DATABASE` trong `.env` có thể chưa đủ. Kiểm tra kết nối hiệu lực trước khi mở website hoặc chạy worker.
+If the website uses `DB_URL` or environment variables supplied by the hosting platform or container, update those values too so that they point to the restored database. They can override `DB_DATABASE` in `.env`. Verify the effective database connection before bringing the website back online or starting workers.
 
-**MySQL/MariaDB** — dùng charset/collation phù hợp với database gốc:
+**MySQL/MariaDB** — use the character set and collation appropriate for the original database.
 
 ```bash
 mysql -h DB_HOST -P 3306 -u DB_USER -p \
@@ -188,9 +188,9 @@ mysql -h DB_HOST -P 3306 -u DB_USER -p kern_restore_0_1_0 \
   < "$kern_backup_dir/database.sql"
 ```
 
-Nếu database rỗng đã được quản trị viên tạo, bỏ qua lệnh `CREATE DATABASE`. Sau khi import thành công, chỉnh `DB_DATABASE=kern_restore_0_1_0` và các thông số kết nối tương ứng trong `.env` của `kern_restore_dir`. Giữ `APP_KEY` cũ.
+If an administrator already created an empty database, skip `CREATE DATABASE`. After a successful import, set `DB_DATABASE=kern_restore_0_1_0` and update the corresponding connection settings in `.env` inside `kern_restore_dir`. Keep the original `APP_KEY`.
 
-**PostgreSQL** — dùng `pg_restore` tương thích với phiên bản tạo dump:
+**PostgreSQL** — use a version of `pg_restore` compatible with the version that created the dump.
 
 ```bash
 createdb -h DB_HOST -p 5432 -U DB_USER -W \
@@ -200,9 +200,9 @@ pg_restore -h DB_HOST -p 5432 -U DB_USER -W \
   --dbname=kern_restore_0_1_0 "$kern_backup_dir/database.pgsql"
 ```
 
-Nếu database rỗng đã được tạo, bỏ qua `createdb`. Chỉ tiếp tục khi restore thành công; quản trị viên cần cấp lại quyền/extension riêng của website nếu có. Chỉnh `.env` trong `kern_restore_dir` trỏ tới database mới và giữ `APP_KEY` cũ.
+If the empty database already exists, skip `createdb`. Continue only after the restore succeeds. Have an administrator reapply any site-specific grants or extensions as needed. Update `.env` in `kern_restore_dir` to point to the new database and keep the original `APP_KEY`.
 
-**SQLite** — dùng snapshot riêng, không dùng bản file database nằm trong ZIP. Chọn tên mới chưa tồn tại để không dùng lại WAL/journal cũ:
+**SQLite** — use the separate snapshot in place of the database file in the ZIP. Choose a new filename to avoid reusing old WAL or journal files.
 
 ```bash
 test ! -e "$kern_restore_dir/database/restored-0.1.0.sqlite" &&
@@ -210,13 +210,13 @@ cp "$kern_backup_dir/database.sqlite" \
   "$kern_restore_dir/database/restored-0.1.0.sqlite"
 ```
 
-Trong `.env` của `kern_restore_dir`, đặt `DB_CONNECTION=sqlite` và `DB_DATABASE` thành **đường dẫn sau khi chuyển thư mục**, ví dụ `/var/www/my-website/database/restored-0.1.0.sqlite`. Đặt quyền đọc/ghi database và thư mục cha cho tài khoản chạy PHP.
+In `.env` inside `kern_restore_dir`, set `DB_CONNECTION=sqlite` and set `DB_DATABASE` to the **path after the directory swap**, such as `/var/www/my-website/database/restored-0.1.0.sqlite`. Grant the PHP account read and write access to the database and its parent directory.
 
-Tham khảo cú pháp từ [MySQL: khôi phục SQL dump](https://dev.mysql.com/doc/refman/8.4/en/reloading-sql-format-dumps.html) và [PostgreSQL: pg_restore](https://www.postgresql.org/docs/current/app-pgrestore.html).
+For command syntax, see the [MySQL guide to reloading SQL dumps](https://dev.mysql.com/doc/refman/8.4/en/reloading-sql-format-dumps.html) and the [PostgreSQL reference for pg_restore](https://www.postgresql.org/docs/current/app-pgrestore.html).
 
-### 4. Chuyển lại mã nguồn và khôi phục symlink
+### 4. Swap the source directories and restore symlinks
 
-Chỉ chuyển thư mục sau khi mã nguồn đã giải nén đầy đủ và database đã khôi phục thành công. Đứng ngoài thư mục website khi đổi tên:
+Swap the directories only after extracting all source files and successfully restoring the database. Run the rename commands from outside the website directory.
 
 ```bash
 cd /var/www &&
@@ -228,15 +228,15 @@ mv -T "$kern_restore_dir" "$kern_site_dir" &&
 kern_backup_dir="$kern_failed_dir/storage/kern-upgrader/$kern_backup_id"
 ```
 
-Thư mục nâng cấp dở và toàn bộ backup vẫn ở `kern_failed_dir`. Nếu lệnh chuyển thứ hai thất bại, giữ lớp bảo trì bên ngoài và chuyển `kern_failed_dir` về đường dẫn website trước khi thử lại.
+The partially upgraded directory and the full backup remain in `kern_failed_dir`. If the second move fails, keep external maintenance mode active and move `kern_failed_dir` back to the website path before retrying.
 
-Xem mục `symlinks` trong `files.json` và tạo lại từng liên kết theo cấu hình gốc. Với liên kết chuẩn `public/storage` tới `storage/app/public`, có thể dùng lệnh `storage:link` ở bước sau. Các liên kết riêng hoặc dữ liệu đích nằm ngoài website phải được kiểm tra/khôi phục riêng; không tự trỏ chúng vào dữ liệu đang nâng cấp dở.
+Review the `symlinks` entry in `files.json` and recreate each link according to the original configuration. You can use `storage:link` in the next step for the standard link from `public/storage` to `storage/app/public`. Check and restore custom links and target data outside the website separately. Verify each target before linking so that the restored site avoids partially upgraded data.
 
-`.git` và `node_modules` không có trong ZIP; nếu cần, khôi phục chúng riêng từ hệ thống quản lý mã nguồn/build. Không sao chép lại toàn bộ thư mục nâng cấp dở lên website vừa phục hồi.
+Restore `.git` and `node_modules` separately from source control or the build system if needed. The ZIP excludes them. Leave the partially upgraded directory separate from the restored website.
 
-### 5. Làm mới cache cấu hình và kiểm tra bản đã khôi phục
+### 5. Refresh configuration caches and verify the restored website
 
-Xóa riêng file cache cấu hình để lần boot tiếp theo dùng kết nối database vừa sửa trong `.env`, rồi làm mới các cache của ứng dụng:
+Remove the configuration cache file so that the next boot uses the database connection you set in `.env`, then refresh the application caches.
 
 ```bash
 cd "$kern_site_dir" &&
@@ -248,23 +248,23 @@ php artisan event:clear --no-interaction &&
 php artisan down --retry=60 --no-interaction
 ```
 
-Nếu website gốc dùng liên kết chuẩn `public/storage`, tạo lại sau khi đã kiểm tra danh sách symlink:
+If the original website used the standard `public/storage` link, recreate it after checking the symlink list.
 
 ```bash
 php artisan storage:link --no-interaction
 ```
 
-Nạp lại PHP-FPM/OPcache theo cơ chế deploy của máy chủ để không chạy mã đã cache của phiên bản nâng cấp dở. Kiểm tra bản `0.1.0` đã phục hồi với database vừa restore: đăng nhập quản trị, nội dung, cấu hình, ảnh và chức năng tùy chỉnh. Nếu cần kiểm tra qua HTTP, giữ lớp bảo trì bên ngoài cho công chúng, chỉ cho phép người kiểm tra truy cập và tạm mở bảo trì ứng dụng. Không chạy migration, công cụ nâng cấp hoặc tạo lại `APP_KEY` trong quá trình rollback.
+Reload PHP-FPM and OPcache using your server's deployment process to clear cached code from the partially upgraded version. Verify the restored `0.1.0` website against the restored database by checking admin sign-in, content, configuration, images, and custom functionality. To test over HTTP, keep external maintenance mode in effect for the public, allow access only to testers, and temporarily disable application maintenance mode. During rollback, avoid running migrations or the upgrade tool, and keep the original `APP_KEY`.
 
-### 6. Mở lại website
+### 6. Bring the website back online
 
-Sau khi xác nhận mã nguồn và database đã đồng bộ, mở chế độ bảo trì ứng dụng:
+Once you confirm that the source code and database are in sync, disable application maintenance mode.
 
 ```bash
 php artisan up --no-interaction
 ```
 
-Gỡ lớp bảo trì của web server/hosting, rồi bật lại worker và scheduler với mã nguồn đã khôi phục. Giữ thư mục nâng cấp dở, database nâng cấp dở và backup ở nơi riêng tư để phân tích nguyên nhân trước lần nâng cấp tiếp theo.
+Disable maintenance mode at the web server or hosting layer, then restart workers and the scheduler with the restored source code. Keep the partially upgraded directory, the partially upgraded database, and the backup private so you can investigate the cause before the next upgrade.
 
 ## License
 
