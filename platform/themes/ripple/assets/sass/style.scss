@@ -1,0 +1,11 @@
+@use "sass:meta";
+
+*,
+body {
+    font-family: var(--primary-font);
+}
+
+@include meta.load-css('main');
+@include meta.load-css('content');
+@include meta.load-css('rtl');
+@include meta.load-css('custom');

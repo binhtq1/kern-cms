@@ -1,0 +1,17 @@
+{
+  "platform/themes/ripple/assets/js/ripple.js": {
+    "file": "assets/ripple-CRWEP3K6.js",
+    "name": "ripple",
+    "src": "platform/themes/ripple/assets/js/ripple.js",
+    "isEntry": true
+  },
+  "platform/themes/ripple/assets/sass/style.scss": {
+    "file": "assets/style-BsMHqiz9.css",
+    "src": "platform/themes/ripple/assets/sass/style.scss",
+    "isEntry": true,
+    "name": "style",
+    "names": [
+      "style.css"
+    ]
+  }
+}

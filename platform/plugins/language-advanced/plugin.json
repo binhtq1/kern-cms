@@ -1,0 +1,14 @@
+{
+    "id": "kern/language-advanced",
+    "name": "Language Advanced",
+    "namespace": "Kern\\LanguageAdvanced\\",
+    "provider": "Kern\\LanguageAdvanced\\Providers\\LanguageAdvancedServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/language-advanced",
+    "version": "1.2.6",
+    "description": "Advanced Multi-language",
+    "minimum_core_version": "1.0.0",
+    "require": [
+        "kern/language"
+    ]
+}

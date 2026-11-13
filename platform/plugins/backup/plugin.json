@@ -1,0 +1,11 @@
+{
+    "id": "kern/backup",
+    "name": "Backup",
+    "namespace": "Kern\\Backup\\",
+    "provider": "Kern\\Backup\\Providers\\BackupServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/backup",
+    "version": "2.0.6",
+    "description": "Backup & restore database, uploads folder",
+    "minimum_core_version": "1.0.0"
+}

@@ -1,0 +1,11 @@
+{
+    "id": "kern/audit-log",
+    "name": "Audit Log",
+    "namespace": "Kern\\AuditLog\\",
+    "provider": "Kern\\AuditLog\\Providers\\AuditLogServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/audit-log",
+    "version": "2.0.6",
+    "description": "Record activities logs",
+    "minimum_core_version": "1.0.0"
+}

@@ -1,0 +1,11 @@
+{
+    "id": "kern/member",
+    "name": "Member",
+    "namespace": "Kern\\Member\\",
+    "provider": "Kern\\Member\\Providers\\MemberServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/member",
+    "version": "2.0.6",
+    "description": "Manage member, user register/login",
+    "minimum_core_version": "1.0.0"
+}

@@ -1,0 +1,22 @@
+import tsParser from "@typescript-eslint/parser";
+import reactHooks from "eslint-plugin-react-hooks";
+
+export default [
+    {
+        files: [
+            "resources/js/admin.tsx",
+            "resources/js/member.tsx",
+            "platform/plugins/member/resources/js/account/**/*.{ts,tsx}",
+            "platform/**/resources/js/admin/**/*.{ts,tsx}",
+        ],
+        languageOptions: {
+            parser: tsParser,
+            parserOptions: { ecmaFeatures: { jsx: true } },
+        },
+        plugins: { "react-hooks": reactHooks },
+        rules: {
+            "react-hooks/rules-of-hooks": "error",
+            "react-hooks/exhaustive-deps": "error",
+        },
+    },
+];
