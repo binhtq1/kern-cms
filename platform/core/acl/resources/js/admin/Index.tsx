@@ -12,7 +12,7 @@ import { tableActionUrl } from "@admin/lib/table-query";
 import { useAdminTranslation } from "@admin/lib/translate";
 import { adminQueryOptions } from "@admin/lib/utils";
 import { Link, router } from "@inertiajs/react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { AclBulkActions } from "./_components/acl-bulk";
 import { AclFilters } from "./_components/acl-filters";
 import { AclTable } from "./_components/acl-table";
@@ -78,6 +78,7 @@ export default function Index({
     const [showFilters, setShowFilters] = useState(
         Boolean(filters.advanced?.length),
     );
+    const filterPanelId = useId();
     const selectable = items.data.filter(
         (row) => row.delete_url || row.can_status || row.can_change,
     );
@@ -128,6 +129,7 @@ export default function Index({
                     search={search}
                     kind={kind}
                     filters={filters}
+                    filterPanelId={filterPanelId}
                     setShowFilters={setShowFilters}
                     showFilters={showFilters}
                     setAdvanced={setAdvanced}
@@ -158,16 +160,18 @@ export default function Index({
                         setSelected={setSelected}
                     />
                 )}
-                {showFilters && (
-                    <fieldset className="contents" disabled={filtering}>
-                        <RegisteredFilterEditor
-                            fields={bulkFields}
-                            value={advanced}
-                            onChange={setAdvanced}
-                            onApply={() => visit({ advanced })}
-                        />
-                    </fieldset>
-                )}
+                <div id={filterPanelId} hidden={!showFilters}>
+                    {showFilters && (
+                        <fieldset className="contents" disabled={filtering}>
+                            <RegisteredFilterEditor
+                                fields={bulkFields}
+                                value={advanced}
+                                onChange={setAdvanced}
+                                onApply={() => visit({ advanced })}
+                            />
+                        </fieldset>
+                    )}
+                </div>
                 {error && !bulkAction && (
                     <p role="alert" className="p-4 text-sm text-destructive">
                         {error}

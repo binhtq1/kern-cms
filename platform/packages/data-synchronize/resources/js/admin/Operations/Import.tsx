@@ -1,5 +1,6 @@
 import { useConfirmDialog } from "@admin/components/confirm-dialog";
 import { Field } from "@admin/components/field";
+import { FileUploadField } from "@admin/components/file-upload-field";
 import { notify } from "@admin/components/toast";
 import { Button } from "@admin/components/ui/button";
 import {
@@ -23,13 +24,7 @@ import { useAdminTranslation } from "@admin/lib/translate";
 import { createUuid } from "@admin/lib/uuid";
 import { Head, router } from "@inertiajs/react";
 import axios from "axios";
-import {
-    CheckCircle2,
-    Download,
-    FileSpreadsheet,
-    UploadCloud,
-    X,
-} from "lucide-react";
+import { CheckCircle2, Download, UploadCloud } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { downloadError, downloadFilename } from "../lib/download";
 type Props = {
@@ -75,23 +70,15 @@ export default function Import({
     const [failures, setFailures] = useState<string[]>([]);
     const [format, setFormat] = useState("csv");
     const controller = useRef<AbortController | null>(null);
-    const fileInput = useRef<HTMLInputElement>(null);
+    const acceptedExtensions = extensions.map(
+        (extension) => `.${extension.replace(/^\./, "")}`,
+    );
     const [stage, setStage] = useState("");
     function chooseFile(next: File | null) {
         setProgress(0);
         setFailures([]);
         setMessage("");
         setStage("");
-        if (
-            next &&
-            !extensions
-                .map((extension) => extension.replace(/^\./, "").toLowerCase())
-                .includes(next.name.split(".").pop()?.toLowerCase() ?? "")
-        ) {
-            setFile(null);
-            setMessage(t("Unsupported file type"));
-            return;
-        }
         setFile(next);
     }
     useEffect(() => () => controller.current?.abort(), []);
@@ -304,65 +291,15 @@ export default function Import({
                             </p>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div
-                                className="flex min-h-52 flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed bg-muted/20 p-6 text-center focus-within:border-primary"
-                                onDragOver={(event) => {
-                                    event.preventDefault();
-                                }}
-                                onDrop={(event) => {
-                                    event.preventDefault();
-                                    if (!busy)
-                                        chooseFile(
-                                            event.dataTransfer.files[0] ?? null,
-                                        );
-                                }}
-                            >
-                                <UploadCloud
-                                    size={36}
-                                    strokeWidth={1.25}
-                                    className="text-muted-foreground"
-                                />
-                                <p className="text-sm font-medium">
-                                    {t(
-                                        "Drop your file here or browse to upload",
-                                    )}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    {extensions
-                                        .map((extension) =>
-                                            extension
-                                                .replace(/^\./, "")
-                                                .toUpperCase(),
-                                        )
-                                        .join(", ")}
-                                </p>
-                                <Button
-                                    variant="outline"
-                                    disabled={busy}
-                                    onClick={() => fileInput.current?.click()}
-                                >
-                                    {t("Choose file")}
-                                </Button>
-                                <input
-                                    ref={fileInput}
-                                    type="file"
-                                    aria-label={t("Import file")}
-                                    className="sr-only"
-                                    disabled={busy}
-                                    accept={extensions
-                                        .map(
-                                            (extension) =>
-                                                `.${extension.replace(/^\./, "")}`,
-                                        )
-                                        .join(",")}
-                                    onChange={(event) => {
-                                        chooseFile(
-                                            event.target.files?.[0] ?? null,
-                                        );
-                                        event.target.value = "";
-                                    }}
-                                />
-                            </div>
+                            <FileUploadField
+                                label={t("Import file")}
+                                accept={acceptedExtensions.join(",")}
+                                formats={acceptedExtensions.join(", ")}
+                                disabled={busy}
+                                file={file}
+                                onSelect={chooseFile}
+                                onRemove={() => chooseFile(null)}
+                            />
                             <Field
                                 label={t("Chunk size")}
                                 description={t(
@@ -394,31 +331,6 @@ export default function Import({
                                     />
                                 )}
                             </Field>
-                            {file && (
-                                <div className="flex items-center gap-3 rounded-md border p-3">
-                                    <FileSpreadsheet
-                                        size={22}
-                                        className="shrink-0 text-primary"
-                                    />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-medium">
-                                            {file.name}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {(file.size / 1024).toFixed(1)} KB
-                                        </p>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        aria-label={t("Remove file")}
-                                        disabled={busy}
-                                        onClick={() => chooseFile(null)}
-                                    >
-                                        <X size={16} />
-                                    </Button>
-                                </div>
-                            )}
                             {(busy || progress > 0) && (
                                 <div className="space-y-2 rounded-md border bg-muted/20 p-4">
                                     <div className="flex items-center justify-between gap-3 text-sm">

@@ -4,7 +4,7 @@ import { useForm } from "@inertiajs/react";
 import AdminLayout from "@admin/layouts/admin-layout";
 import { Card, CardContent } from "@admin/components/ui/card";
 import { Field } from "@admin/components/field";
-import { Input, Textarea } from "@admin/components/ui/input";
+import { FileUploadField } from "@admin/components/file-upload-field";
 import { Button } from "@admin/components/ui/button";
 import { useAdminTranslation } from "@admin/lib/translate";
 type Props = {
@@ -19,19 +19,25 @@ type Props = {
         description: string;
     }[];
 };
+function editorValues(
+    fields: Props["fields"],
+): Record<string, string | File | null> {
+    return Object.fromEntries(
+        fields
+            .filter((field) => field.type !== "notice")
+            .map((field) => [
+                field.name,
+                field.type === "file" ? null : (field.value ?? ""),
+            ]),
+    );
+}
 export default function Editor({ title, submit, fields }: Props) {
     const t = useAdminTranslation();
-    const form = useForm<Record<string, string | File | null>>(
-        Object.fromEntries(
-            fields
-                .filter((field) => field.type !== "notice")
-                .map((field) => [
-                    field.name,
-                    field.type === "file" ? null : (field.value ?? ""),
-                ]),
-        ),
-    );
+    const form = useForm(editorValues(fields));
     useUnsavedChanges(form.isDirty, form.processing);
+    const hasFile = Object.values(form.data).some(
+        (value) => value instanceof File,
+    );
     return (
         <AdminLayout title={t(title)}>
             <form
@@ -39,7 +45,15 @@ export default function Editor({ title, submit, fields }: Props) {
                 onSubmit={(event) => {
                     event.preventDefault();
                     form.post(submit, {
-                        onSuccess: () => form.setDefaults(form.data),
+                        onSuccess: (page) => {
+                            if (hasFile && Array.isArray(page.props.fields)) {
+                                const saved = editorValues(page.props.fields);
+                                form.setData(saved);
+                                form.setDefaults(saved);
+                            } else {
+                                form.setDefaults(form.data);
+                            }
+                        },
                     });
                 }}
             >
@@ -61,27 +75,47 @@ export default function Editor({ title, submit, fields }: Props) {
                                     description={field.description}
                                     error={form.errors[field.name]}
                                 >
-                                    {(id) =>
-                                        field.type === "file" ? (
-                                            <Input
+                                    {(id) => {
+                                        const value = form.data[field.name];
+                                        return field.type === "file" ? (
+                                            <FileUploadField
                                                 id={id}
-                                                type="file"
                                                 accept="text/plain,.txt"
-                                                onChange={(event) =>
+                                                formats=".txt"
+                                                maxBytes={2 * 1024 * 1024}
+                                                disabled={form.processing}
+                                                file={
+                                                    value instanceof File
+                                                        ? value
+                                                        : null
+                                                }
+                                                onSelect={(file) => {
+                                                    form.clearErrors(
+                                                        field.name,
+                                                    );
                                                     form.setData(
                                                         field.name,
-                                                        event.target
-                                                            .files?.[0] ?? null,
-                                                    )
-                                                }
+                                                        file,
+                                                    );
+                                                }}
+                                                onRemove={() => {
+                                                    form.clearErrors(
+                                                        field.name,
+                                                    );
+                                                    form.setData(
+                                                        field.name,
+                                                        null,
+                                                    );
+                                                }}
                                             />
                                         ) : (
                                             <CodeEditor
                                                 id={id}
                                                 mode={field.mode}
-                                                value={String(
-                                                    form.data[field.name] ?? "",
-                                                )}
+                                                value={String(value ?? "")}
+                                                disabled={
+                                                    hasFile && form.processing
+                                                }
                                                 onChange={(value) =>
                                                     form.setData(
                                                         field.name,
@@ -89,8 +123,8 @@ export default function Editor({ title, submit, fields }: Props) {
                                                     )
                                                 }
                                             />
-                                        )
-                                    }
+                                        );
+                                    }}
                                 </Field>
                             ),
                         )}

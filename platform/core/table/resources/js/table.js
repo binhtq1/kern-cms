@@ -171,7 +171,13 @@ class NativeTable {
             else if (button.matches('.btn-show-table-options')) {
                 event.preventDefault()
                 const panel = this.wrapper.querySelector('.table-configuration-wrap')
-                if (panel) panel.style.display = getComputedStyle(panel).display === 'none' ? 'block' : 'none'
+                if (panel) {
+                    const expanded = getComputedStyle(panel).display === 'none'
+                    panel.style.display = expanded ? 'block' : 'none'
+                    const toggle = this.wrapper.querySelector('.table-filter-toggle')
+                    toggle?.setAttribute('aria-expanded', String(expanded))
+                    if (!expanded && button !== toggle) toggle?.focus()
+                }
             } else if (button.matches('[data-bb-toggle="dt-exports"], .buttons-excel, .buttons-csv')) {
                 event.preventDefault()
                 await this.export(button.dataset.bbTarget || (button.classList.contains('buttons-excel') ? 'excel' : 'csv'))

@@ -22,11 +22,15 @@ import AdminLayout from "@admin/layouts/admin-layout";
 import { useAdminTranslation } from "@admin/lib/translate";
 import { Button } from "@admin/components/ui/button";
 import { Card } from "@admin/components/ui/card";
-import { Input, Textarea } from "@admin/components/ui/input";
+import { Textarea } from "@admin/components/ui/input";
 import { Select } from "@admin/components/ui/select";
 import { Dialog } from "@admin/components/ui/dialog";
 import { Field } from "@admin/components/field";
+import { FileUploadField } from "@admin/components/file-upload-field";
 import { TranslationNavigation } from "../components/translation-navigation";
+
+const maxJsonBytes = 20 * 1024 * 1024;
+
 type Row = { group: string; key: string; original: string; value: string };
 type Props = {
     theme: boolean;
@@ -78,9 +82,36 @@ export default function TranslationIndex({
     const [importOpen, setImportOpen] = useState(false);
     const [json, setJson] = useState("");
     const [error, setError] = useState("");
+    const [file, setFile] = useState<File | null>(null);
+    const [fileError, setFileError] = useState("");
+    const [reading, setReading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [reimportOpen, setReimportOpen] = useState(false);
     const form = useForm({ name: "", value: "", group: "", pk: locale });
+    async function readFile(next: File) {
+        setReading(true);
+        setFileError("");
+        try {
+            const text = await next.text();
+            parseJsonImport(text, maxJsonBytes, 50000);
+            setJson(text);
+            setFile(next);
+            setError("");
+        } catch (error) {
+            setFileError(
+                t(
+                    error instanceof SyntaxError
+                        ? "Invalid JSON"
+                        : error instanceof Error &&
+                            error.message === "Invalid JSON data"
+                          ? "Invalid JSON data"
+                          : "Could not read the JSON file.",
+                ),
+            );
+        } finally {
+            setReading(false);
+        }
+    }
     function visit(changes: Record<string, string | number>) {
         tableGet(
             urls.index,
@@ -402,19 +433,22 @@ export default function TranslationIndex({
             </Dialog>
             <Dialog
                 open={importOpen}
-                onOpenChange={(value) => !busy && setImportOpen(value)}
+                onOpenChange={(value) =>
+                    !busy && !reading && setImportOpen(value)
+                }
                 title={t("Import")}
             >
                 <form
+                    className="space-y-4"
                     onSubmit={(event) => {
                         event.preventDefault();
+                        if (busy || reading) return;
                         try {
                             const rows = parseJsonImport(
                                 json,
-                                20 * 1024 * 1024,
+                                maxJsonBytes,
                                 50000,
                             );
-                            if (!Array.isArray(rows)) throw new Error();
                             setError("");
                             setBusy(true);
                             router.post(
@@ -433,42 +467,22 @@ export default function TranslationIndex({
                         }
                     }}
                 >
-                    <Field label={t("JSON file")}>
+                    <Field label={t("JSON file")} error={fileError}>
                         {(id) => (
-                            <Input
+                            <FileUploadField
                                 id={id}
-                                type="file"
                                 accept=".json,application/json"
+                                formats=".json"
+                                maxBytes={maxJsonBytes}
+                                file={file}
                                 disabled={busy}
-                                onChange={async (event) => {
-                                    const file = event.target.files?.[0];
-                                    event.target.value = "";
-                                    if (!file) return;
-                                    setBusy(true);
+                                loading={reading}
+                                onSelect={(next) => void readFile(next)}
+                                onRemove={() => {
+                                    setFile(null);
+                                    setFileError("");
+                                    setJson("");
                                     setError("");
-                                    try {
-                                        if (file.size > 20 * 1024 * 1024)
-                                            throw new Error(
-                                                "File is too large",
-                                            );
-                                        const text = await file.text();
-                                        parseJsonImport(
-                                            text,
-                                            20 * 1024 * 1024,
-                                            50000,
-                                        );
-                                        setJson(text);
-                                    } catch (error) {
-                                        setError(
-                                            t(
-                                                error instanceof Error
-                                                    ? error.message
-                                                    : "Invalid JSON",
-                                            ),
-                                        );
-                                    } finally {
-                                        setBusy(false);
-                                    }
                                 }}
                             />
                         )}
@@ -479,13 +493,17 @@ export default function TranslationIndex({
                                 id={id}
                                 className="min-h-64 font-mono"
                                 value={json}
-                                onChange={(event) =>
-                                    setJson(event.target.value)
-                                }
+                                disabled={busy || reading}
+                                onChange={(event) => {
+                                    setJson(event.target.value);
+                                    setFile(null);
+                                    setFileError("");
+                                    setError("");
+                                }}
                             />
                         )}
                     </Field>
-                    <Button type="submit" className="mt-4" loading={busy}>
+                    <Button type="submit" loading={busy} disabled={reading}>
                         {t("Import")}
                     </Button>
                 </form>

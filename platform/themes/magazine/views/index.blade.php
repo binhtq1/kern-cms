@@ -21,12 +21,12 @@
                 @if ($leadPost->description)
                     <p>{{ $leadPost->description }}</p>
                 @endif
-                <a class="text-link tw-interactive" href="{{ $leadPost->url }}">{{ __('Đọc bài viết') }}<span aria-hidden="true">&nbsp;&rarr;</span></a>
+                <a class="text-link tw-interactive" href="{{ $leadPost->url }}">{{ __('Read the article') }}<span aria-hidden="true">&nbsp;&rarr;</span></a>
             </article>
 
             @if ($featuredPosts->isNotEmpty())
                 <aside class="lead-grid__secondary" aria-labelledby="read-next-title">
-                    <h2 id="read-next-title">{{ __('Đọc tiếp') }}</h2>
+                    <h2 id="read-next-title">{{ __('Read next') }}</h2>
                     @foreach ($featuredPosts as $post)
                         {!! Theme::partial('post-card', ['post' => $post, 'variant' => 'compact']) !!}
                     @endforeach
@@ -44,8 +44,8 @@
     @if ($latestPosts->isNotEmpty())
         <section class="home-section" id="latest-stories" aria-labelledby="latest-stories-title">
             <div class="section-heading">
-                <h2 id="latest-stories-title">{{ __('Mới nhất') }}</h2>
-                <a class="text-link tw-interactive" href="{{ get_blog_page_url() }}">{{ __('Xem tất cả') }}<span aria-hidden="true">&nbsp;&rarr;</span></a>
+                <h2 id="latest-stories-title">{{ __('Latest') }}</h2>
+                <a class="text-link tw-interactive" href="{{ get_blog_page_url() }}">{{ __('View all') }}<span aria-hidden="true">&nbsp;&rarr;</span></a>
             </div>
             @php
                 $latestLead = $latestPosts->first();
@@ -79,7 +79,7 @@
     @if ($featuredCategories->isNotEmpty())
         <section class="home-section home-section--categories" id="subjects" aria-labelledby="category-stories-title">
             <div class="section-heading">
-                <h2 id="category-stories-title">{{ __('Khám phá theo chủ đề') }}</h2>
+                <h2 id="category-stories-title">{{ __('Browse by topic') }}</h2>
             </div>
             <div class="category-columns">
                 @foreach ($featuredCategories as $category)
@@ -90,7 +90,7 @@
                     <section class="category-column" aria-labelledby="category-{{ $category->id }}-title">
                         <div class="category-column__heading">
                             <h3 id="category-{{ $category->id }}-title"><a href="{{ $category->url }}">{{ $category->name }}</a></h3>
-                            <a href="{{ $category->url }}" aria-label="{{ __('Xem tất cả bài viết trong :category', ['category' => $category->name]) }}">&rarr;</a>
+                            <a href="{{ $category->url }}" aria-label="{{ __('View all articles in :category', ['category' => $category->name]) }}">&rarr;</a>
                         </div>
                         @if ($categoryLead)
                             {!! Theme::partial('post-card', ['post' => $categoryLead, 'variant' => 'category-feature']) !!}
@@ -99,7 +99,7 @@
                             {!! Theme::partial('post-card', ['post' => $post, 'variant' => 'list']) !!}
                         @empty
                             @if (! $categoryLead)
-                            <p class="category-column__empty">{{ __('Chưa có bài viết nào được xuất bản.') }}</p>
+                            <p class="category-column__empty">{{ __('No articles have been published yet.') }}</p>
                             @endif
                         @endforelse
                     </section>

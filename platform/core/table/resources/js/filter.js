@@ -46,6 +46,7 @@ async function loadInput(select) {
 function reload(form, reset = false) {
     const url = new URL(location.href)
     for (const key of Array.from(url.searchParams.keys())) if (key.startsWith('filter_')) url.searchParams.delete(key)
+    let appliedCount = 0
     if (!reset) {
         const indexes = {}
         for (const [name, value] of new FormData(form)) {
@@ -53,9 +54,25 @@ function reload(form, reset = false) {
             if (name.endsWith('[]')) indexes[name] = (indexes[name] || 0) + 1
             url.searchParams.set(key, value)
         }
+        for (let index = 0; index < (indexes['filter_columns[]'] ?? 0); index++) {
+            if (url.searchParams.get(`filter_columns[${index}]`) &&
+                url.searchParams.get(`filter_operators[${index}]`) &&
+                url.searchParams.get(`filter_values[${index}]`)?.trim()) appliedCount++
+        }
     }
     history.replaceState({}, '', url)
-    const table = form.closest('.table-wrapper')?.querySelector('table')
+    const wrapper = form.closest('.table-wrapper')
+    const toggle = wrapper?.querySelector('.table-filter-toggle')
+    const badge = toggle?.querySelector('.table-filter-count')
+    if (badge) {
+        badge.textContent = String(appliedCount)
+        badge.hidden = appliedCount === 0
+        const { filterLabel, filterAppliedLabel } = toggle.dataset
+        toggle.setAttribute('aria-label', appliedCount
+            ? `${filterLabel}. ${filterAppliedLabel.replace(':count', String(appliedCount))}`
+            : filterLabel)
+    }
+    const table = wrapper?.querySelector('table')
     const controller = window.KernTables?.get(table?.id)
     if (controller) { controller.start = 0; controller.load() }
     form.querySelectorAll('[data-bb-toggle="datatable-reset-filter"]').forEach((button) => { button.style.display = reset ? 'none' : '' })

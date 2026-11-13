@@ -143,10 +143,10 @@
                 tag="a"
                 href="{{ URL::current() }}"
                 data-bb-toggle="datatable-reset-filter"
-                @style(['display: none' => !request()->has('filter_table_id')])
-                icon="ti ti-refresh"
-                :icon-only="true"
-            />
+                @style(['display: none' => !$table->isFiltering()])
+            >
+                {{ trans('core/base::admin.Clear filters') }}
+            </x-core::button>
         </div>
     </x-core::form>
 </div>

@@ -32,7 +32,7 @@
     </div>
 @else
     <section class="editorial-empty editorial-empty--compact" aria-live="polite">
-        <h2>{{ __('Không tìm thấy bài viết.') }}</h2>
-        <span>{{ __('Hãy thử cụm từ khác hoặc quay lại khi có bài viết mới.') }}</span>
+        <h2>{{ __('No articles found.') }}</h2>
+        <span>{{ __('Try a different search term or check back for new articles.') }}</span>
     </section>
 @endif

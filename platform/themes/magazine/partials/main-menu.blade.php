@@ -5,7 +5,7 @@
                 <span>{{ $row->title }}</span>
             </a>
             @if ($row->has_child)
-                <button type="button" class="submenu-toggle" aria-expanded="false" aria-label="{{ __('Mở menu con của :title', ['title' => $row->title]) }}" data-submenu-toggle>
+                <button type="button" class="submenu-toggle" aria-expanded="false" aria-label="{{ __('Open submenu for :title', ['title' => $row->title]) }}" data-submenu-toggle>
                     <span aria-hidden="true"></span>
                 </button>
                 {!! Menu::generateMenu(['menu' => $menu, 'menu_nodes' => $row->child, 'view' => 'main-menu', 'options' => ['class' => 'sub-menu']]) !!}

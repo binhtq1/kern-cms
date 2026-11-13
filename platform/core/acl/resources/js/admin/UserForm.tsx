@@ -16,6 +16,7 @@ import {
     CardTitle,
 } from "@admin/components/ui/card";
 import { Field } from "@admin/components/field";
+import { FileUploadField } from "@admin/components/file-upload-field";
 import { useAdminTranslation } from "@admin/lib/translate";
 
 type Option = { value: string; label: string };
@@ -409,24 +410,25 @@ export default function UserForm({
                                         error={avatar.errors.avatar_file}
                                     >
                                         {(id) => (
-                                            <Input
+                                            <FileUploadField
                                                 id={id}
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={(event) => {
-                                                    const file =
-                                                        event.target.files?.[0];
-                                                    if (file) setCropFile(file);
-                                                    event.target.value = "";
+                                                accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp"
+                                                formats={t("Images")}
+                                                disabled={avatar.processing}
+                                                file={avatar.data.avatar_file}
+                                                onSelect={setCropFile}
+                                                onRemove={() => {
+                                                    avatar.setData(
+                                                        "avatar_file",
+                                                        null,
+                                                    );
+                                                    avatar.clearErrors(
+                                                        "avatar_file",
+                                                    );
                                                 }}
                                             />
                                         )}
                                     </Field>
-                                    {avatar.data.avatar_file && (
-                                        <p className="text-xs text-muted-foreground">
-                                            {avatar.data.avatar_file.name}
-                                        </p>
-                                    )}
                                     <div className="flex gap-2">
                                         <Button
                                             type="submit"
@@ -691,6 +693,7 @@ export default function UserForm({
                     file={cropFile}
                     onClose={() => setCropFile(null)}
                     onApply={(file) => {
+                        avatar.clearErrors("avatar_file");
                         avatar.setData("avatar_file", file);
                         setCropFile(null);
                     }}
