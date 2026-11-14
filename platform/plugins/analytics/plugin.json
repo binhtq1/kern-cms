@@ -1,0 +1,11 @@
+{
+    "id": "kern/analytics",
+    "name": "Analytics",
+    "namespace": "Kern\\Analytics\\",
+    "provider": "Kern\\Analytics\\Providers\\AnalyticsServiceProvider",
+    "author": "Binh Tran <quocbinhkrb@gmail.com>",
+    "url": "https://github.com/binhtq1/kern-cms/tree/main/platform/plugins/analytics",
+    "version": "2.1.6",
+    "description": "Tracking data from Google Analytics",
+    "minimum_core_version": "1.0.0"
+}

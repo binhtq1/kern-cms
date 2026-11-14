@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+cd "$(dirname "$0")/.."
+exec docker run --rm --user "$(id -u):$(id -g)" --network host -e COMPOSER_HOME=/tmp/composer -v "$PWD:/app" kern-cms-php:8.4 composer "$@"
