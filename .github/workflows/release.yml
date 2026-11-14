@@ -58,6 +58,7 @@ jobs:
     if: ${{ inputs.publish }}
     needs: prepare
     runs-on: ubuntu-latest
+    timeout-minutes: 55
     permissions:
       actions: read
       contents: write
@@ -82,14 +83,19 @@ jobs:
           fi
           bash scripts/publish-release.sh kern-core "$RELEASE_VERSION" "$RUNNER_TEMP/kern-artifacts"
       - name: Wait for the runtime to be available on Packagist
+        shell: bash
         run: |
-          for attempt in {1..12}; do
-            if curl --fail --silent https://repo.packagist.org/p2/binhtq1/kern-core.json | jq -e --arg version "$RELEASE_VERSION" '.packages["binhtq1/kern-core"][] | select(.version == $version or .version == ("v" + $version))' >/dev/null; then
+          echo "Waiting up to 45 minutes for kern-core $RELEASE_VERSION in Packagist Composer metadata."
+          deadline=$((SECONDS + 45 * 60))
+          while (( SECONDS < deadline )); do
+            if curl --fail --silent --show-error --max-time 10 https://repo.packagist.org/p2/binhtq1/kern-core.json |
+              jq -e --arg version "$RELEASE_VERSION" '.packages["binhtq1/kern-core"][]? | select(.version == $version or .version == ("v" + $version))' >/dev/null; then
+              echo "Packagist Composer metadata includes kern-core $RELEASE_VERSION."
               exit 0
             fi
-            sleep 10
+            sleep 30
           done
-          echo 'kern-core is not indexed yet. Register/refresh binhtq1/kern-core on Packagist, then rerun the failed publish job.' >&2
+          echo "kern-core $RELEASE_VERSION did not appear in Packagist Composer metadata within 45 minutes. Rerun the failed publish job when the version is available." >&2
           exit 1
       - name: Publish kern-cms starter
         env:
